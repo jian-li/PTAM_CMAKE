@@ -1,8 +1,14 @@
-<<<<<<< HEAD
-PTAM
-====
+#PTAM_CMAKE
 
-Parallel Tracking and Mapping for Small AR Workspaces from Oxford University
-=======
-# PTAM_CMAKE
->>>>>>> 4ff9df9a78178c6564775f1e45f5092f6c74730e
+PTAM_CMAKE is the cmake version of PTAM, tested on ubuntu 14.04.
+
+##Installation
+###Libraries Required
+```
+#Build Tools
+sudo apt-get update
+sudo apt-get install build-essential cmake pkg-config
+#Boost for C++
+sudo apt-get install libboost-dev libboost-doc
+
+```
