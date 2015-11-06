@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2005 Paul Smith, 2009 Edward Rosten
+    Copyright (c) 2005 Paul Smith, 2009, 2010, 2011, 2012 Edward Rosten
 
 	Permission is granted to copy, distribute and/or modify this document under
 	the terms of the GNU Free Documentation License, Version 1.2 or any later
@@ -24,16 +24,17 @@
 \section sIntro Introduction
 
 The %TooN library is a set of C++ header files which provide basic numerics facilities:
-	- @link TooN::Vector Vectors@endlink and @link TooN::Matrix matrices@endlink
+	- @link TooN::Vector Vectors@endlink, @link TooN::Matrix matrices@endlink and @link gLinAlg etc @endlink
 	- @link gDecomps Matrix decompositions@endlink
 	- @link gOptimize Function optimization@endlink
 	- @link gTransforms Parameterized matrices (eg transformations)@endlink 
 	- @link gEquations linear equations@endlink
+	- @link gFunctions Functions (eg automatic differentiation and numerical derivatives) @endlink
 
 It provides classes for statically- (known at compile time) and dynamically-
-(unknown at compile time) sized vectors and matrices and it delegates advanced
-functions (like SVD or multiplication of large matrices) to LAPACK and BLAS
-(this means you will need libblas and liblapack).
+(unknown at compile time) sized vectors and matrices and it can delegate
+advanced functions (like large SVD or multiplication of large matrices) to
+LAPACK and BLAS (this means you will need libblas and liblapack).
 
 The library makes substantial internal use of templates to achieve run-time
 speed efficiency whilst retaining a clear programming syntax.
@@ -44,6 +45,30 @@ Why use this library?
  - Because it supports transposition, subscripting and slicing of matrices (to obtain a vector) very efficiently.
  - Because it interfaces well to other libraries.
  - Because it exploits LAPACK and BLAS (for which optimised versions exist on many platforms).
+ - Because it is fast, \link sCramerIsBad but not at the expense of numerical stability. \endlink
+
+\section sDesign Design philosophy of TooN
+
+- TooN is designed to represent mathematics as closely as possible.
+
+- TooN is a linear algebra library.
+  - TooN is designed as a linear algebra library and not a generic container
+	and array mathematics library. 
+	
+- Vectors are not matrices.
+  - The Vector and Matrix objects are distinct. Vectors and matrices are closely
+	related, but distinct objects which makes things like outer versus inner
+	product clearer, removes ambiguity and special cases and generally makes the code
+	shorter.
+
+- TooN generally doesn't allow things which don't make much sense.
+  - Why would you want to multiply or add Zeros?
+
+- A vector is always a Vector and a matrix is always a Matrix
+  - Both concrete and generic functions take variations on the Vector and Matrix class,
+    no matter where the data comes from.  You will never see anything like a BaseVector.
+
+
 
 \section sUsage How to use TooN
 This section is arranged as a FAQ. Most answers include code fragments. Assume
@@ -51,18 +76,23 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 
  - \ref sDownload
  - \ref sStart
+ - \ref sWindowsErrors
  - \ref sCreateVector
  - \ref sCreateMatrix
  - \ref sFunctionVector
  - \ref sGenericCode
+ - \ref sConst
  - \ref sElemOps
  - \ref sInitialize
  - \ref sScalars
  - \ref ssExamples
- - \ref sNoResize
+ - \ref sSTL
+ - \ref sResize
  - \ref sDebug
  - \ref sSlices
+ - \ref sFuncSlices
  - \ref sPrecision
+ - \ref sAutomaticDifferentiation
  - \ref sSolveLinear
  - \ref sOtherStuff
  - \ref sHandyFuncs
@@ -70,6 +100,7 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
  - \ref sColMajor
  - \ref sWrap
  - \ref sWrap "How do I interface to other libraries?"
+ - \ref sCpp11
  - \ref sImplementation
 
  	\subsection sDownload Getting the code and installing
@@ -89,6 +120,9 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	TooN to the correct place.  Note there is no code to be compiled, but the
 	configure script performs some basic checks.
 
+	On non-unix systems, e.g. Windows and embedded systems, you may wish to 
+	configure the library manually. See \ref sManualConfiguration.
+
 	\subsection sStart Getting started
 
 		To begin, just in include the right file:
@@ -104,6 +138,15 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 		against LAPACK, BLAS and any required support libraries. On a modern
 		unix system, linking against LAPACK will do this automatically.
 
+	\subsection sWindowsErrors Comilation errors on Win32 involving TOON_TYPEOF
+	
+		If you get errors compiling code that uses TooN, look for the macro TOON_TYPEOF 
+		in the messages. Most likely the file <code>internal/config.hh</code> is clobbered. 
+		Open it and remove all the defines present there. 
+		
+		Also see @ref sManualConfiguration for more details on configuring TooN, 
+		and @ref sConfigLapack, if you want to use LAPACK and BLAS. Define the macro
+		in <code>internal/config.hh</code>.
 
 	\subsection sCreateVector How do I create a vector?
 
@@ -142,9 +185,74 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 
 		To write a function taking any type of vector by reference:
 		@code
-		template<int Size, typename Base> void func(const Vector<Size, double, Base>& v);
+		template<int Size, typename Precision, typename Base> void func(const Vector<Size, Precision, Base>& v);
 		@endcode
 		See also \ref sPrecision, \ref sGenericCode and \ref sNoInplace
+
+
+		Slices are strange types. If you want to write a function which
+		uniformly accepts <code>const</code> whole objects as well as slices,
+		you need to template on the precision.
+
+		Note that constness in C++ is tricky (see \ref sConst). If you write
+		the function to accept <code> Vector<3, double, B>& </code>, then you
+		will not be able to pass it slices from <code> const Vector</code>s.
+		If, however you write it to accept <code> Vector<3, const double, B>&
+		</code>, then the only way to pass in a <code>Vector<3></code> is to
+		use the <code>.as_slice()</code> method.
+
+		See also \ref sGenericCode
+
+	\subsection sConst What is wrong with constness?
+
+		In TooN, the behaviour of a Vector or Matrix is controlled by the third
+		template parameter. With one parameter, it owns the data, with another
+		parameter, it is a slice. A static sized object uses the variable:
+		@code
+			 double my_data[3];
+		@endcode
+		to hold the data. A slice object uses:
+		@code
+			 double* my_data;
+		@endcode
+		When a Vector is made <code>const</code>, C++ inserts <code>const</code> in
+		to those types.  The <code>const</code> it inserts it top level, so these
+		become (respectively):
+		@code
+			 const double my_data[3];
+			 double * const my_data;
+		@endcode
+		Now the types behave very differently. In the first case
+		<code>my_data[0]</code> is immutable. In the second case,
+		<code>my_data</code> is immutable, but
+		<code>my_data[0]</code> is mutable.
+		
+		Therefore a slice <code>const Vector</code> behaves like an immutable
+		pointer to mutable data. TooN attempts to make <code>const</code>
+		objects behave as much like pointers to \e immutable data as possible.
+
+		The semantics that TooN tries to enforce can be bypassed with 
+		sufficient steps:
+		@code
+			//Make v look immutable
+			template<class P, class B> void fake_immutable(const Vector<2, P, B>& v)
+			{
+				Vector<2, P, B> nonconst_v(v);
+				nonconst_v[0] = 0; //Effectively mutate v
+			}
+
+			void bar()
+			{
+				Vector<3> v;
+				...
+				fake_immutable(v.slice<0,2>());
+				//Now v is mutated
+			}
+
+		@endcode
+
+		See also \ref sFunctionVector
+
 
 
 	\subsection sElemOps What elementary operations are supported?
@@ -210,12 +318,26 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 		Vector.as_col() //vector as a Nx1 matrix
 		@endcode
 
-		Slicing:
+		Slicing with a start position and size:
+		
 		@code
-		Vector.slice<Start, End>();                            //Static slice
-		Vector.slice<>(start, end);                            //Dynamic slice
+		Vector.slice<Start, Length>();                         //Static slice
+		Vector.slice(start, length);                           //Dynamic slice
 		Matrix.slice<RowStart, ColStart, NumRows, NumCols>();  //Static slice
-		Matrix.slice<>(rowstart, colstart, numrows, numcols);  //Dynamic slice
+		Matrix.slice(rowstart, colstart, numrows, numcols);    //Dynamic slice
+		@endcode
+		
+		Slicing diagonals:
+		@code
+		Matrix.diagonal_slice();                               //Get the leading diagonal as a vector.
+		Vector.as_diagonal();                                  //Represent a Vector as a DiagonalMatrix
+		@endcode
+		
+		Like other features of TooN, mixed static/dynamic slicing is allowed.
+		For example:
+
+		@code
+		Vector.slice<Dynamic, 2>(3, 2);   //Slice starting at index 3, of length 2.
 		@endcode
 
 		See also \ref sSlices
@@ -242,6 +364,26 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 			Matrix<> m2 = Identity(3);
 		@endcode
 		note that you need to specify the size in the dynamic case.
+
+		Matrices can be filled from data in row-major order:
+		@code
+			Matrix<3> m = Data(1, 2, 3, 
+			                   4, 5, 6, 
+							   7, 8, 9);
+		@endcode
+
+		A less general, but visually more pleasing syntax can also be used:
+		@code
+			Vector<5> v;
+			Fill(v) = 1,2,3,4,5; 
+
+			Matrix<3,3> m;
+			Fill(m) = 1, 2, 3, 
+			          4, 5, 6, 
+					  7, 8, 9;
+		@endcode
+		Note that underfilling is a run-time check, since it can not be detected
+		at compile time.
 
 		They can also be initialized with data from another source. See also \ref  sWrap.
 
@@ -271,31 +413,86 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	trying to assign a vector of length 2 to a vector of length 3 is an error,
 	so it fails. See also \ref sResize
 
+	\subsection sSTL How do I store Dynamic vectors in STL containers.
+
+	As C++ does not yet support move semantics, you can only safely store
+	static and resizable Vectors in STL containers.
+
 	\subsection sResize How do I resize a dynamic vector/matrix?
 
-	You can't. Preventing resize allow all sorts of things to be const
-	which is great for optimization. If you want a genuinely resizable
-	structure, you may consider using a <code>std::vector</code>, and accessing
-	it as a TooN object when appropriate. See \ref sWrap. Also, the
-	speed and complexity of resizable matrices depends on the memory layout, so
-	you may wish to use column major matrices as opposed to the default row
-	major layout.
+	Do you really want to? If you do, then you have to declare it:
+
+	@code
+	     Vector<Resizable> v;
+		 v.resize(3);
+		 v = makeVector(1, 2, 3);
+
+		 v = makeVector(1, 2); //resize
+		 v = Ones(5); //resize
+		 v = Zeros; // no resize
+	@endcode
+
+	The policy behind the design of TooN is that it is a linear algebra
+	library, not a generic container library, so resizable Vectors are only
+	created on request. They provide fewer guarantees than other vectors, so
+	errors are likely to be more subtle and harder to track down.  One of the
+	main purposes is to be able to store Dynamic vectors of various sizes in
+	STL containers.
+
+	Assigning vectors of mismatched sizes will cause an automatic resize. Likewise
+	assigning from entities like Ones with a size specified will cause a resize.
+	Assigning from an entities like Ones with no size specified will not cause
+	a resize.
+
+	They can also be resized with an explicit call to .resize().
+	Resizing is efficient since it is implemented internally with
+	<code>std::vector</code>.  Note that upon resize, existing data elements
+	are retained but new data elements are uninitialized.
+
+	Currently, resizable matrices are unimplemented.  If you want a resizable
+	matrix, you may consider using a <code>std::vector</code>, and accessing it
+	as a TooN object when appropriate. See \ref sWrap. Also, the speed and
+	complexity of resizable matrices depends on the memory layout, so you may
+	wish to use column major matrices as opposed to the default row major
+	layout.
 
 	\subsection sDebug What debugging options are there?
 
 	By default, everything which is checked at compile time in the static case
-	is checked at run-time in the dynamic case. In other words, slices and sizes
-	are checked at run-time if need be. These checks can be disabled by defining
-	the macros \c TOON_NDEBUG_SLICE and \c TOON_NDEBUG_SIZE respectively. Bounds are
-	not checked by default. Bounds checking can be enabled by defining the macro
-	\c TOON_CHECK_BOUNDS. None of these macros change the interface, so debugging
-	code can be freely mixed with optimized code.
+	is checked at run-time in the dynamic case (with some additions). Checks can
+	be disabled with various macros. Note that the optimizer will usually
+	remove run-time checks on static objects if the test passes.
+	
+	Bounds are not checked by default. Bounds checking can be enabled by
+	defining the macro \c TOON_CHECK_BOUNDS. None of these macros change the
+	interface, so debugging code can be freely mixed with optimized code.
+
+	The debugging checks can be disabled by defining either of the following macros:
+		- \c TOON_NDEBUG
+		- \c NDEBUG 
+
+	Additionally, individual checks can be disabled with the following macros:
+		- Static/Dynamic mismatch
+			- Statically determined functions accept and ignore dynamically specified
+			  sizes. Nevertheless, it is an error if they do not match.
+			- Disable with \c TOON_NDEBUG_MISMATCH
+		- Slices
+			- Disable with \c TOON_NDEBUG_SLICE
+		- Size checks (for assignment)
+			- Disable with \c TOON_NDEBUG_SIZE
+		- overfilling using Fill 
+			- Disable with \c TOON_NDEBUG_FILL
+		- underfilling using Fill (run-time check)
+			- Disable with \c TOON_NDEBUG_FILL
+	
+
+
 
 	Errors are manifested to a call to <code>std::abort()</code>.
 
 	TooN does not initialize data in a Vector or Matrix.  For debugging purposes
 	the following macros can be defined:
-	- \c TOON_INITIALIZE_QNAN Sets every element of newly defined Vectors or
+	- \c TOON_INITIALIZE_QNAN or \c TOON_INITIALIZE_NAN Sets every element of newly defined Vectors or
 	  Matrixs to quiet NaN, if it exists, and 0 otherwise. Your code will not compile
 	  if you have made a Vector or Matrix of a type which cannot be constructed
 	  from a number.
@@ -329,6 +526,9 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 		m[0][0]=6;
 	@endcode
 
+	Slices are usually strange types. See \ref sFunctionVector
+
+	See also \sFuncSlices
 
 	\subsection sPrecision Can I have a precision other than double?
 
@@ -336,9 +536,57 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	@code
 		Vector<3, float> v;          //Static sized vector of floats
 		Vector<Dynamic, float> v(4); //Dynamic sized vector of floats
+		Vector<Dynamic, std::complex<double> > v(4); //Dynamic sized vector of complex numbers
 	@endcode
 
-	Likewise for matrix.
+	Likewise for matrix. By default, TooN supports all builtin types
+	and std::complex. Using custom types requires some work. If the 
+	custom type understands +,-,*,/ with builtin types, then specialize
+	TooN::IsField on the types.
+
+	If the type only understands +,-,*,/ with itself, then specialize
+	TooN::Field on the type.
+
+	Note that this is required so that TooN can follow the C++ promotion 
+	rules. The result of multiplying a <code>Matrix<double></code> by a 
+	<code>Vector<float></code> is a <code>Vector<double></code>.
+
+
+	\subsection sFuncSlices How do I return a slice from a function?
+
+	
+	If you are using C++11, returning slices is now easy:
+	@code
+		auto sliceof(Vector<4>& v)->decltype (v.slice<1,2>())
+		{
+			return v.slice<1,2>();
+		}
+	@endcode
+
+	If not, some tricks are required.
+	Each vector has a <code>SliceBase</code> type indicating the type of a slice.
+
+	They can be slightly tricky to use:
+	@code
+		Vector<2, double, Vector<4>::SliceBase> sliceof(Vector<4>& v)
+		{
+			return v.slice<1,2>();
+		}
+
+		template<int S, class P, class B>
+		Vector<2, P, Vector<S, P, B>::SliceBase> sliceof(Vector<S, P, B>& v)
+		{
+			return v.template slice<1,2>();
+		}
+
+		template<int S, class P, class B>
+		const Vector<2, const P, typename Vector<S, P, B>::ConstSliceBase > foo(const Vector<S, P, B>& v)
+		{
+			return v.template slice<1,2>();
+		}
+
+	@endcode
+
 
 	\subsection sSolveLinear How do I invert a matrix / solve linear equations?
 	
@@ -347,10 +595,10 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	@code
 	Matrix<3> A;
 	A[0]=makeVector(1,2,3);
-	A[1]=makeVector(2,3,4);
-	A[2]=makeVector(3,2,1);
+	A[1]=makeVector(3,2,1);
+	A[2]=makeVector(1,0,1);
 
-	Vector<3> b = makeVector (2,4,5);
+	Vector<3> b = makeVector (2,3,4);
 
 	// solve Ax=b using LU
 	LU<3> luA(A);
@@ -363,22 +611,40 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	
 	Similarly for the other \ref sDecompos "decomposition objects"
 
+	For 2x2 matrices, the TooN::inv function can be used.
+
 	\subsection sDecompos  Which decomposisions are there?
 
 	For general size matrices (not necessarily square) there are:
-	@link TooN::LU LU @endlink, @link TooN::SVD SVD @endlink and gauss_jordan
+	@link TooN::LU LU @endlink, @link TooN::SVD SVD @endlink, @link TooN::QR QR@endlink, @link TooN::QR_Lapack LAPACK's QR@endlink and gauss_jordan()
 
 	For square symmetric matrices there are:
 	@link TooN::SymEigen SymEigen @endlink and @link TooN::Cholesky Cholesky @endlink
 
-	If all you want to do is solve a single Ax=b then you may want gaussian_elimination
+	If all you want to do is solve a single Ax=b then you may want gaussian_elimination()
 
 	\subsection sOtherStuff What other stuff is there:
-
-		Optimization: WLS, IRLS, downhill_simplex, SO2, SE2, SO3, SE3
-
+	
+	Look at the @link modules modules @endlink.
 
 	\subsection sHandyFuncs What handy functions are there (normalize, identity, fill, etc...)?
+
+	See @link gLinAlg here @endlink.
+
+	\subsection sAutomaticDifferentiation Does TooN support automatic differentiation?
+	
+	TooN has buildin support for <a href="http://www.fadbad.com/fadbad.html">FADBAD++</a>.
+	Just do:
+	@code
+		#include <functions/fadbad.h>
+	@endcode
+	Then create matrices and vectors of FADBAD types. See functions/fadbad.h
+	for available functions and parameterisations.
+
+	TooN is type generic and so can work on any reasonable types including AD types
+	if a small amount of interfacing is performed.
+	See \sPrecision.
+
 
 
 	\subsection sNoInplace Why don't functions work in place?
@@ -408,21 +674,7 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	@endcode
 	to get func to accept the slice.
 
-	Alternatively, you can observe that only TooN objects with the default base
-	class own the data. All other sorts are references, so copying them only
-	copies the reference, and the referred data is the same. You could therefore
-	write a function to forward on TooN objects with the default base:
-
-	@code
-		template<class Base> void func(Vector<3, double, Base> v); //This will operate in-place only on slices
-
-		void func(Vector<3>& v) //This will catch any non-slices and forward them on.
-		{
-			func(v.as_slice());
-		}
-	@endcode
-
-	However, please consider writing functions that do not modify structures in
+	You may also wish to consider writing functions that do not modify structures in
 	place. The \c unit function of TooN computes a unit vector given an input
 	vector. In the following context, the code:
 	@code
@@ -443,6 +695,7 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	@endcode
 
 	\subsection sWrap I have a pointer to a bunch of data. How do I turn it in to a vector/matrix without copying?
+
 	To create a vector use:
 	@code
 	double d[]={1,2,3,4};
@@ -468,6 +721,8 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	Matrix<Dynamic, Dynamic, double, Reference::RowMajor> m3(d, 2, 3);
 	Matrix<Dynamic, 3, double, Reference::RowMajor> m4(d, 2, 3); // note two size arguments are required for semi-dynamic matrices
 	@endcode
+
+	See also wrapVector() and wrapMatrix().
 
 	\subsection sGenericCode How do I write generic code?
 	
@@ -515,6 +770,16 @@ This section is arranged as a FAQ. Most answers include code fragments. Assume
 	}
 	@endcode
 
+	For issues relating to constness, see \sFunctionVector and \sConst
+
+	\subsection sCpp11 What about C++ 11 support?
+
+	TooN compiles cleanly under C++ 11, but does not require it. It can also
+	make use of some C++11 features where present. Internally, it will make use
+	of \c decltype if a C++11 compiler is present and no overriding configuration
+	has been set.  See  \ref stypeof for more information.
+
+	
 
 \subsection ssExamples Are there any examples?
 
@@ -660,17 +925,63 @@ class Vector: public Base::template VLayout<Size, Precision> {
 @endcode
 
 then take a look at the source code ... 
+
+
+\section sManualConfiguration Manual configuration
+	
+Configuration is controlled by <code>internal/config.hh</code>. If this file is empty
+then the default configuration will be used and TooN will work. There are several options.
+
+\subsection stypeof Typeof
+
+TooN needs a mechanism to determine the type of the result of an expression. One of the following
+macros can be defined to control the behaviour:
+- \c TOON_TYPEOF_DECLTYPE
+  - Use the C++11 decltype operator.
+- \c TOON_TYPEOF_TYPEOF
+  - Use GCC's \c typeof extension. Only works with GCC and will fail with -pedantic
+- \c TOON_TYPEOF___TYPEOF__
+  - Use GCC's \c __typeof__ extension. Only works with GCC and will work with -pedantic
+- \c TOON_TYPEOF_BOOST
+  - Use the \link http://www.boost.org/doc/html/typeof.html Boost.Typeof\endlink system.
+    This will work with Visual Studio if Boost is installed.
+- \c TOON_TYPEOF_BUILTIN
+  - The default option (does not need to be defined)
+  - Only works for the standard builtin integral types and <code>std::complex<float></code> and <code>std::complex<double></code>.
+
+Under Win32, the builtin typeof needs to be used. Comment out all the TOON_TYPEOF_ defines to use it.
+
+If no configuration is present and C++11 is detected, then \c decltype will be used.
+
+\subsection sConfigLapack Functions using LAPACK
+
+Some functions use internal implementations for small sizes and may switch over
+to LAPACK for larger sizes. In all cases, an equivalent method is used in terms
+of accuracy (eg Gaussian elimination versus LU decomposition). If the following 
+macro is defined:
+- \c TOON_USE_LAPACK
+then LAPACK will be used for large systems, where optional.
+The individual functions are:
+- TooN::determinant is controlled by \c TOON_DETERMINANT_LAPACK
+  -  If the macro is undefined as or defined as -1, then LAPACK will never be
+	 used. Otherwise it indicated which the size at which LAPACK should be 
+	 used.
+
+Note that these macros do not affect classes that are currently only wrappers
+around LAPACK.
+
 **/
 
 ///////////////////////////////////////////////////////
 // Modules classifying classes and functions
 
 /// @defgroup gLinAlg Linear Algebra
-/// %Vector and matrix classes, and helpers.
+/// \link TooN::Vector Vector\endlink  and \link TooN::Matrix Matrix \endlink classes, and helpers.
 
 /// @defgroup gDecomps Matrix decompositions
 /// Classes to perform matrix decompositions, used to solve 
-/// linear equations and provide information about matrices. These are wrappers for functionality
+/// linear equations and provide information about matrices. 
+/// Some of these are wrappers around LAPACK, others are built in.
 /// provided by the LAPACK library.
 
 /// @defgroup gTransforms Transformation matrices
@@ -679,7 +990,10 @@ then take a look at the source code ...
 /// @defgroup gEquations Linear equation solvers
 /// Classes to solve linear equations.
 
+/// @defgroup gFunctions Evaluation of functions.
+/// Evaluation of useful functions.
 /** 
+
 @defgroup gOptimize Function optimization
 
 Classes and functions to perform function optimization.
@@ -700,7 +1014,7 @@ The mode of operation is to set up a mutable class, then repeatedly call an
 iterate function. This allows different sub algorithms (such as termination
 conditions) to be substituted in if need be.
 
-@defgroup gTooN Main parts of TooN
-
+@internal
 @defgroup gInternal TooN internals
+
 */

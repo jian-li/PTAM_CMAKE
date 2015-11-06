@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 ///////////////////////////////////////////////////////
 // General Doxygen documentation
 ///////////////////////////////////////////////////////
@@ -48,14 +28,15 @@ It is released under the LGPL License.
 			- PNM   
 			- BMP
 			- ASCII text
-			- FITS (reading only)
+			- FITS 
 			- PS   (saving only)
 			- EPS  (saving only)
+			- CVD (a custom type which supports fast, lossless compression of greyscale, RGB and Bayer images)
 		- External libraries required
 			- JPEG
 			- TIFF 
 			- PNG
-		- 1/8/16/32 bit integer and 32/64 bit floating point images in greyscale, RGB and RGBA.
+		- 1/8/16/32 bit signed and unsigned integer and 32/64 bit floating point images in greyscale, RGB and RGBA.
 		- Optimum bit depth and colour depth selected automatically
     - Image grabbing from video sources:
 		  - Linux
@@ -96,29 +77,36 @@ It is released under the LGPL License.
 	- Random numbers
 
 \section Portability
-  LibCVD will compile on any reasonable unixy environment, with a reasonable
-  C++ compiler (e.g. gcc version >= 3.1) and GNU Make.  Additionally, libCVD
-  supports both normal and cross compilers.  It is known to work on:
+  LibCVD will compile on Visual Studio and any reasonable unixy environment,
+  with a reasonable C++ compiler, with TR1 and GNU Make.  Additionally, libCVD
+  supports both normal and cross compilers.  Status:
   
   -Well tested (current):
 	- Linux: x86, x86-64
+	- Mac OS X: x86
+		- Supports the OSX build environment including:
+			- Frameworks
+			- .dylib libraries
+	- iOS
+		- XCode project provided
+	- Cygwin: x86
+	- MinGW: x86 (native and cross compile)
+	- MinGW: x86_64 (cross compile)
+	- Win32: Visual Studio 2008
+	- Win32: Visual Studio 2010 (via import of the VS 2008 project file)
+
+  -Has worked on (current status unknown):
+	- Linux: PPC
+	- Mac OS X: PPC
+	- Solaris: SPARC
 	- Linux: ARM LPC3180, XScale (cross compile)
 	- uCLinux: Blackfin  (cross compile)
 	- FreeBSD: x86
 	- OpenBSD: XScale
-	- Mac OS X: x86, PPC
-		- Supports the OSX build environment including:
-			- Frameworks
-			- .dylib libraries
-	- Cygwin: x86
-	- MinGW: x86 (native and cross compile)
-	- Win32: Visual Studio 2005
-
-  -Has worked on (current status unknown):
-	- Linux: PPC
-	- Solaris: SPARC
-	- IRIX SGI O2: MIPS
-
+  
+  -No longer supported
+	- IRIX SGI O2: MIPS (configuration hacks removed)
+	- Win32: Visual Studio 2005 (broken project file now removed)
 
 \section Compiling
 
@@ -129,7 +117,7 @@ The normal system works:
 	make install
 @endcode
 
-libCVD fully supports parallel builds (<code>make -j2</code> for instance).
+libCVD fully supports parallel builds (<code>make -j48</code> for instance).
 
 \subsection slBugs Library bugs/issues
 	There are a few known library bugs which prevent the libraries working with libCVD
@@ -149,6 +137,66 @@ libCVD fully supports parallel builds (<code>make -j2</code> for instance).
 			- pnm_src/jpeg.cc
 		- Remove <code>cvd_src/videosource.o</code> from <code>Makefile</code> and use <code>--disable-jpeg</code>
 		- Compile files with -O2 instead of -O3
+
+\subsection OSX OSX Compilation notes
+
+To build libCVD in 32 bit mode, use the \c configure_osx_32bit script instead of directly calling the configure script.
+
+\subsection iOS iOS
+
+An xcode project is provided in the \c build directory
+
+\subsection win32 Windows
+
+For Win32 systems, the @c build directory contains project files for different versions
+of Visual Studio. Currently the vc2008 solutions are supported and should work out of the box. 
+
+libCVD requires the <a href="http://www.microsoft.com/downloads/en/details.aspx?FamilyId=D466226B-8DAB-445F-A7B4-448B326C48E7&displaylang=en">Visual Studio feature pack for TR1</a> support.
+
+There are several projects which can be compiled:
+
+- libcvd-TooN A very basic configuration which only requires the <a href="http://mi.eng.cam.ac.uk/~er258/cvd/toon.html">TooN</a> headers. You must add the TooN
+  directory to the include path using: 
+    - (Popup Menu) Project Properties -> (Dialog) Configuration -> C/C++ -> Common : Additional Include Directories
+
+- libcvd-TooN-JPEG-pthreads This is a more featureful configuration which has JPEG and threading support. In order to compile
+  CVD, you must first compile these libraries:
+	- pthreads-win32 at http://sourceware.org/pthreads-win32/
+	- jpeg at http://www.ijg.org/
+
+In order to avoid the need to set up a large number of include paths, all libCVD
+projects assume the existence of three environment variables describing the location of header, 
+library and binary files (for DLLs).
+	
+	- @c INCLUDEDIR contains the header files. libcvd headers will be copied into @c \%INCLUDEDIR%\\\libcvd
+	- @c LIBDIR contains library files. libcvd static libraries (debug and release verions) will be copied into @c \%LIBDIR\%
+	- @c BINDIR is not used for libcvd, but would be the default directory for DLLs
+
+To use this feature, make a directory tree containing (for example):
+
+- C:\\local\\include
+- C:\\local\\bin
+- C:\\local\\lib
+
+Then set up three environment variables (e.g. using <a href="http://www.rapidee.com/en/about">rapidee</a>) to be the following:
+- INCLUDEDIR=C:\\local\\include
+- BINDIR=C:\\local\\bin
+- LIBDIR=C:\\local\\lib
+
+libCVD will then find all headers and libraries in that directory tree. LibCVD also includes the file:
+- install.vcproj
+
+This will copy the relevant files into that tree.
+
+libCVD compiles to static libraries for simpler linking and to avoid the _dllexport/_dllimport statements throughout the code.
+
+Configuration of features is manual through a default config file in @c build/vs2008/config-*.h. Edit this file to change your configuration, 
+for example to support other image formats such as PNG. Alternatively, new configurations can be generated using the file:
+
+- make/make_vcproj_all.sh
+
+from any unix-like environment (including MINGW and Cygwin).
+
 */
 
 ///////////////////////////////////////////////////////

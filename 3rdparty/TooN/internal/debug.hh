@@ -1,3 +1,28 @@
+//Copyright (C) Edward Rosten, Tom Drummond 2009
+
+//All rights reserved.
+//
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
+
 namespace TooN {
 
 namespace Internal
@@ -19,6 +44,9 @@ namespace Internal
 			}
 		}
 	#else
+		///@internal
+		///Function used to check bounds.
+		///By default it does nothing. See \ref sDebug.
 		static inline void check_index(int, int){}
 	#endif
 
@@ -29,7 +57,7 @@ namespace Internal
 			for(int i=0; i < n; i++)
 				data[i] = numeric_limits<P>::signaling_NaN();
 		}
-	#elif defined TOON_INITIALIZE_QNAN
+	#elif defined TOON_INITIALIZE_QNAN || defined TOON_INITIALIZE_NAN
 		template<class P> static void debug_initialize(P* data, int n)
 		{	
 			using std::numeric_limits;
@@ -62,7 +90,7 @@ namespace Internal
 			static intbits random = { ((std::time(NULL) & 0xffffffff) *1664525L + 1013904223L)& 0xffffffff};
 			unsigned char* cdata = reinterpret_cast<unsigned char*>(data);
 
-			int bytes = sizeof(P)*n, i=0;
+			size_t bytes = sizeof(P)*n, i=0;
 			
 			//Do nothing except for noisy failure with non-POD types.
 			datafail<P> d={0};
@@ -91,6 +119,9 @@ namespace Internal
 			}
 		}
 	#else
+		///@internal
+		///@brief This function is called on any uninitialized data. By default, no action is taken. 
+		///See \ref sDebug
 		template<class P> static void debug_initialize(P*, int)
 		{
 		}

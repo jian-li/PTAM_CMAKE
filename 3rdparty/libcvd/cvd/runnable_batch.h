@@ -1,11 +1,12 @@
 #ifndef CVD_INCLUDE_RUNNABLE_BATCH_H
 #define  CVD_INCLUDE_RUNNABLE_BATCH_H
 
-#include <cvd/thread.h>
-#include <tr1/memory>
+#include <cvd/runnable.h>
+#include <cvd/internal/shared_ptr.h>
 #include <vector>
 namespace CVD
 {
+	class Thread;
 
 //Forward declaration
 template<class C> class MessageQueue;
@@ -20,18 +21,10 @@ class RunnableBatch
 		bool joined;
 		unsigned int  parallelism;
 
-		class RunMessageInThread: public Thread
-		{
-			public:
-				RunMessageInThread(MessageQueue<std::tr1::shared_ptr<Runnable> >* queue);
-				virtual void run();
+		class RunMessageInThread;
 
-			private:
-				MessageQueue<std::tr1::shared_ptr<Runnable> >* q;
-		};
-	
-		std::vector<std::tr1::shared_ptr<RunMessageInThread> > threads;
-		std::tr1::shared_ptr<MessageQueue<std::tr1::shared_ptr<Runnable> > > queue;
+		std::vector<CVD::STD::shared_ptr<RunMessageInThread> > threads;
+		CVD::STD::shared_ptr<MessageQueue<CVD::STD::shared_ptr<Runnable> > > queue;
 	
 
 	public:
@@ -51,7 +44,7 @@ class RunnableBatch
 		///Put a task on the queue. This will be run at some point
 		///in the future. Job lifetime is managed by shared_ptr, so they
 		///may be managed wither by RunnableBatch or by the caller.
-		void schedule(std::tr1::shared_ptr<Runnable> r);
+		void schedule(CVD::STD::shared_ptr<Runnable> r);
 	
 		///Destruct the job manager. This will wait for all threads
 		///to finish and terminate.

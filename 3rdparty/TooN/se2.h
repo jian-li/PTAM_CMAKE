@@ -2,31 +2,29 @@
 
 // Copyright (C) 2005,2009 Tom Drummond (twd20@cam.ac.uk),
 // Ed Rosten (er258@cam.ac.uk), Gerhard Reitmayr (gr281@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.  This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 /* This code mostly made by copying from se3.h !! */
 
@@ -48,7 +46,7 @@ namespace TooN {
 /// three numbers (in the space of the Lie Algebra). In this class, the first two parameters are a
 /// translation vector while the third is the amount of rotation in the plane as for SO2.
 /// @ingroup gTransforms
-template <typename Precision = double>
+template <typename Precision = DefaultPrecision>
 class SE2 {
 public:
 	/// Default constructor. Initialises the the rotation to zero (the identity) and the translation to zero
@@ -85,20 +83,24 @@ public:
 
 	/// Right-multiply by another SE2 (concatenate the two transformations)
 	/// @param rhs The multipier
-	inline SE2 operator *(const SE2& rhs) const { return SE2(my_rotation*rhs.my_rotation, my_translation + my_rotation*rhs.my_translation); }
+	template <typename P>
+	SE2<typename Internal::MultiplyType<Precision,P>::type> operator *(const SE2<P>& rhs) const { 
+		return SE2<typename Internal::MultiplyType<Precision,P>::type>(my_rotation*rhs.get_rotation(), my_translation + my_rotation*rhs.get_translation()); 
+	}
 
 	/// Self right-multiply by another SE2 (concatenate the two transformations)
 	/// @param rhs The multipier
-	inline SE2& operator *=(const SE2& rhs) { 
+	template <typename P>
+	inline SE2& operator *=(const SE2<P>& rhs) { 
 		*this = *this * rhs; 
 		return *this; 
 	}
 
 	/// returns the generators for the Lie group. These are a set of matrices that
 	/// form a basis for the vector space of the Lie algebra.
-	/// @item 0 is translation in x
-	/// @item 1 is translation in y
-	/// @item 2 is rotation in the plane
+	/// - 0 is translation in x
+	/// - 1 is translation in y
+	/// - 2 is rotation in the plane
 	static inline Matrix<3,3, Precision> generator(int i) {
 		Matrix<3,3,Precision> result(Zeros);
 		if(i < 2){
@@ -113,7 +115,7 @@ public:
 	/// transfers a vector in the Lie algebra, from one coord frame to another
 	/// so that exp(adjoint(vect)) = (*this) * exp(vect) * (this->inverse())
 	template<typename Accessor>
-	inline Vector<3, Precision> adjoint(const Vector<3,Precision, Accessor> & vect) const {
+	Vector<3, Precision> adjoint(const Vector<3,Precision, Accessor> & vect) const {
 		Vector<3, Precision> result;
 		result[2] = vect[2];
 		result.template slice<0,2>() = my_rotation * vect.template slice<0,2>();
@@ -123,7 +125,7 @@ public:
 	}
 
 	template <typename Accessor>
-	inline Matrix<3,3,Precision> adjoint(const Matrix<3,3,Precision,Accessor>& M) const {
+	Matrix<3,3,Precision> adjoint(const Matrix<3,3,Precision,Accessor>& M) const {
 		Matrix<3,3,Precision> result;
 		for(int i=0; i<3; ++i)
 			result.T()[i] = adjoint(M.T()[i]);
@@ -141,8 +143,13 @@ private:
 /// @relates SE2
 template <class Precision>
 inline std::ostream& operator<<(std::ostream& os, const SE2<Precision> & rhs){
-	for(int i=0; i<2; i++)
-		os << rhs.get_rotation().get_matrix()[i] << rhs.get_translation()[i] << std::endl;
+	std::streamsize fw = os.width();
+	for(int i=0; i<2; i++){
+		os.width(fw);
+		os << rhs.get_rotation().get_matrix()[i];
+		os.width(fw);
+		os << rhs.get_translation()[i] << '\n';
+	}
 	return os;
 }
 
@@ -300,21 +307,6 @@ inline Matrix<Rows,3, typename Internal::MultiplyType<PM,P>::type> operator*(con
 	return Matrix<Rows,3,typename Internal::MultiplyType<PM,P>::type>(Operator<Internal::MSE2Mult<Rows, C, PM, A, P> >(lhs,rhs));
 }
 
-/* inline SE2 SE2::exp(const Vector<3>& mu){ */
-/*   SE2 result; */
-/*   double theta = mu[2]; */
-/*   result.get_rotation() = SO2::exp(theta); */
-/*   Matrix<2> m2; */
-/*   m2[0][0] = m2[1][1] = result.get_rotation().get_matrix()[1][0]; */
-/*   m2[0][1] = result.get_rotation().get_matrix()[0][0] - 1.0; */
-/*   m2[1][0] = - m2[0][1]; */
-/*   if(theta != 0.0)  */
-/*     result.get_translation() = m2 * mu.slice<0,2>() / fabs(theta); */
-/*   else */
-/*     result.get_translation() = mu.slice<0,2>(); */
-/*   return result; */
-/* } */
-
 template <typename Precision>
 template <int S, typename PV, typename Accessor>
 inline SE2<Precision> SE2<Precision>::exp(const Vector<S, PV, Accessor>& mu)
@@ -346,7 +338,7 @@ inline SE2<Precision> SE2<Precision>::exp(const Vector<S, PV, Accessor>& mu)
 			A = sine * inv_theta;
 			B = (1 - cosine) * (inv_theta * inv_theta);
 		}
-		result.get_translation() = A * mu.template slice<0,2>() + B * cross;
+		result.get_translation() = TooN::operator*(A,mu.template slice<0,2>()) + TooN::operator*(B,cross);
 	}
 	return result;
 }

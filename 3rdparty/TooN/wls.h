@@ -1,31 +1,29 @@
 // -*- c++ -*-
 
 // Copyright (C) 2005,2009 Tom Drummond (twd20@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.  This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 #ifndef TOON_INCLUDE_WLS_H
 #define TOON_INCLUDE_WLS_H
@@ -38,13 +36,13 @@
 
 namespace TooN {
 
-/// Performs weighted least squares computation.
+/// Performs Gauss-Newton weighted least squares computation.
 /// @param Size The number of dimensions in the system
 /// @param Precision The numerical precision used (double, float etc)
 /// @param Decomposition The class used to invert the inverse Covariance matrix (must have one integer size and one typename precision template arguments) this is Cholesky by default, but could also be SQSVD
 /// @ingroup gEquations
-template <int Size=Dynamic, class Precision=double,
-		  template<int Size, class Precision> class Decomposition = Cholesky>
+template <int Size=Dynamic, class Precision=DefaultPrecision,
+		  template<int DecompSize, class DecompPrecision> class Decomposition = Cholesky>
 class WLS {
 public:
 
@@ -59,8 +57,6 @@ public:
 	}
 
 	/// Clear all the measurements and apply a constant regularisation term. 
-	/// Equates to a prior that says all the parameters are zero with \f$\sigma^2 = \frac{1}{\text{val}}\f$.
-	/// @param prior The strength of the prior
 	void clear(){
 		my_C_inv = Zeros;
 		my_vector = Zeros;
@@ -100,13 +96,18 @@ public:
 	/// @param weight The inverse variance of the measurement (default = 1)
 	template<class B2>
 	inline void add_mJ(Precision m, const Vector<Size, Precision, B2>& J, Precision weight = 1) {
-		Vector<Size,Precision> Jw = J*weight;
-		my_C_inv += Jw.as_col() * J.as_row();
-		my_vector+= m*Jw;
+		
+		//Upper right triangle only, for speed
+		for(int r=0; r < my_C_inv.num_rows(); r++)
+		{
+			double Jw = weight * J[r];
+			my_vector[r] += m * Jw;
+			for(int c=r; c < my_C_inv.num_rows(); c++)
+				my_C_inv[r][c] += Jw * J[c];
+		}
 	}
 
 	/// Add multiple measurements at once (much more efficiently)
-	/// @param N The number of measurements
 	/// @param m The measurements to add
 	/// @param J The Jacobian matrix \f$\frac{\partial\text{m}_i}{\partial\text{param}_j}\f$
 	/// @param invcov The inverse covariance of the measurement values
@@ -114,15 +115,92 @@ public:
 	inline void add_mJ(const Vector<N,Precision,B1>& m,
 					   const Matrix<Size,N,Precision,B2>& J,
 					   const Matrix<N,N,Precision,B3>& invcov){
-		Matrix<Size,N,Precision> temp =  J * invcov;
+		const Matrix<Size,N,Precision> temp =  J * invcov;
 		my_C_inv += temp * J.T();
 		my_vector += temp * m;
 	}
 
+	/// Add multiple measurements at once (much more efficiently)
+	/// @param m The measurements to add
+	/// @param J The Jacobian matrix \f$\frac{\partial\text{m}_i}{\partial\text{param}_j}\f$
+	/// @param invcov The inverse covariance of the measurement values
+	template<int N, class B1, class B2, class B3>
+	inline void add_mJ_rows(const Vector<N,Precision,B1>& m,
+					   const Matrix<N,Size,Precision,B2>& J,
+					   const Matrix<N,N,Precision,B3>& invcov){
+		const Matrix<Size,N,Precision> temp =  J.T() * invcov;
+		my_C_inv += temp * J;
+		my_vector += temp * m;
+	}
+
+	/// Add a single measurement at once with a sparse Jacobian (much, much more efficiently)
+	/// @param m The measurements to add
+	/// @param J1 The first block of the Jacobian matrix \f$\frac{\partial\text{m}_i}{\partial\text{param}_j}\f$
+	/// @param index1 starting index for the first block
+	/// @param invcov The inverse covariance of the measurement values
+	template<int N, typename B1>
+	inline void add_sparse_mJ(const Precision m,
+					   const Vector<N,Precision,B1>& J1, const int index1,
+					   const Precision weight = 1){
+		//Upper right triangle only, for speed
+		for(int r=0; r < J1.size(); r++)
+		{
+			double Jw = weight * J1[r];
+			my_vector[r+index1] += m * Jw;
+			for(int c = r; c < J1.size(); c++)
+				my_C_inv[r+index1][c+index1] += Jw * J1[c];
+		}
+	}
+
+	/// Add multiple measurements at once with a sparse Jacobian (much, much more efficiently)
+	/// @param m The measurements to add
+	/// @param J1 The first block of the Jacobian matrix \f$\frac{\partial\text{m}_i}{\partial\text{param}_j}\f$
+	/// @param index1 starting index for the first block
+	/// @param invcov The inverse covariance of the measurement values
+	template<int N, int S1, class P1, class P2, class P3, class B1, class B2, class B3>
+	inline void add_sparse_mJ_rows(const Vector<N,P1,B1>& m,
+					   const Matrix<N,S1,P2,B2>& J1, const int index1,
+					   const Matrix<N,N,P3,B3>& invcov){
+		const Matrix<S1,N,Precision> temp1 = J1.T() * invcov;
+		const int size1 = J1.num_cols();
+		my_C_inv.slice(index1, index1, size1, size1) += temp1 * J1;
+		my_vector.slice(index1, size1) += temp1 * m;
+	}
+
+	/// Add multiple measurements at once with a sparse Jacobian (much, much more efficiently)
+	/// @param m The measurements to add
+	/// @param J1 The first block of the Jacobian matrix \f$\frac{\partial\text{m}_i}{\partial\text{param}_j}\f$
+	/// @param index1 starting index for the first block
+	/// @param J2 The second block of the Jacobian matrix \f$\frac{\partial\text{m}_i}{\partial\text{param}_j}\f$
+	/// @param index2 starting index for the second block
+	/// @param invcov The inverse covariance of the measurement values
+	template<int N, int S1, int S2, class B1, class B2, class B3, class B4>
+	inline void add_sparse_mJ_rows(const Vector<N,Precision,B1>& m,
+					   const Matrix<N,S1,Precision,B2>& J1, const int index1,
+					   const Matrix<N,S2,Precision,B3>& J2, const int index2,
+					   const Matrix<N,N,Precision,B4>& invcov){
+		const Matrix<S1,N,Precision> temp1 = J1.T() * invcov;
+		const Matrix<S2,N,Precision> temp2 = J2.T() * invcov;
+		const Matrix<S1,S2,Precision> mixed = temp1 * J2;
+		const int size1 = J1.num_cols();
+		const int size2 = J2.num_cols();
+		my_C_inv.slice(index1, index1, size1, size1) += temp1 * J1;
+		my_C_inv.slice(index2, index2, size2, size2) += temp2 * J2;
+		my_C_inv.slice(index1, index2, size1, size2) += mixed;
+		my_C_inv.slice(index2, index1, size2, size1) += mixed.T();
+		my_vector.slice(index1, size1) += temp1 * m;
+		my_vector.slice(index2, size2) += temp2 * m;
+	}
 
 	/// Process all the measurements and compute the weighted least squares set of parameter values
 	/// stores the result internally which can then be accessed by calling get_mu()
 	void compute(){
+	
+		//Copy the upper right triangle to the empty lower-left.
+		for(int r=1; r < my_C_inv.num_rows(); r++)
+			for(int c=0; c < r; c++)
+				my_C_inv[r][c] = my_C_inv[c][r];
+
 		my_decomposition.compute(my_C_inv);
 		my_mu=my_decomposition.backsub(my_vector);
 	}
@@ -138,12 +216,12 @@ public:
 	Matrix<Size,Size,Precision>& get_C_inv() {return my_C_inv;}
 	/// Returns the inverse covariance matrix
 	const Matrix<Size,Size,Precision>& get_C_inv() const {return my_C_inv;}
-	Vector<Size,Precision>& get_mu(){return my_mu;}
-	const Vector<Size,Precision>& get_mu() const {return my_mu;}
-	Vector<Size,Precision>& get_vector(){return my_vector;}
-	const Vector<Size,Precision>& get_vector() const {return my_vector;}
-	Decomposition<Size,Precision>& get_decomposition(){return my_decomposition;}
-	const Decomposition<Size,Precision>& get_decomposition() const {return my_decomposition;}
+	Vector<Size,Precision>& get_mu(){return my_mu;}  ///<Returns the update. With no prior, this is the result of \f$J^\dagger e\f$.
+	const Vector<Size,Precision>& get_mu() const {return my_mu;} ///<Returns the update. With no prior, this is the result of \f$J^\dagger e\f$.
+	Vector<Size,Precision>& get_vector(){return my_vector;} ///<Returns the  vector \f$J^{\mathsf T} e\f$
+	const Vector<Size,Precision>& get_vector() const {return my_vector;} ///<Returns the  vector \f$J^{\mathsf T} e\f$
+	Decomposition<Size,Precision>& get_decomposition(){return my_decomposition;} ///< Return the decomposition object used to compute \f$(J^{\mathsf T}  J + P)^{-1}\f$
+	const Decomposition<Size,Precision>& get_decomposition() const {return my_decomposition;} ///< Return the decomposition object used to compute \f$(J^{\mathsf T}  J + P)^{-1}\f$
 
 
 private:
@@ -153,8 +231,8 @@ private:
 	Vector<Size,Precision> my_mu;
 
 	// comment out to allow bitwise copying
-	WLS( WLS& copyof );
-	int operator = ( WLS& copyof );
+	// WLS( WLS& copyof );
+	// int operator = ( WLS& copyof );
 };
 
 }

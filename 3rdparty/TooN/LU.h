@@ -2,31 +2,29 @@
 
 // Copyright (C) 2005,2009 Tom Drummond (twd20@cam.ac.uk),
 // Ed Rosten (er258@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.	This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.	If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.	Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.	This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 #ifndef TOON_INCLUDE_LU_H
 #define TOON_INCLUDE_LU_H
@@ -49,15 +47,17 @@ where \f$L\f$ is a lower-diagonal matrix with unit diagonal and \f$U\f$ is an
 upper-diagonal matrix. The library only supports the decomposition of square matrices.
 It can be used as follows to solve the \f$M\underline{x} = \underline{c}\f$ problem as follows:
 @code
-// construct M
-double d1[][] = {{1,2,3},{4,5,6},{7,8,10}};
-Matrix<3> M(d1);
-// construct c
-Vector<3> c = 2,3,4;
-// create the LU decomposition of M
-LU<3> luM(M);
-// compute x = M^-1 * c
-Vector<3> x = luM.backsub(c);
+  // construct M
+  Matrix<3> M;
+  M[0] = makeVector(1,2,3);
+  M[1] = makeVector(3,2,1);
+  M[2] = makeVector(1,0,1);
+  // construct c
+  Vector<3> c = makeVector(2,3,4);
+  // create the LU decomposition of M
+  LU<3> luM(M);
+  // compute x = M^-1 * c
+  Vector<3> x = luM.backsub(c);
 @endcode
 The convention LU<> (=LU<-1>) is used to create an LU decomposition whose size is 
 determined at runtime.
@@ -84,9 +84,9 @@ class LU {
 	
 		//Make a local copy. This is guaranteed contiguous
 		my_lu=m;
-		int lda = m.num_rows();
-		int M = m.num_rows();
-		int N = m.num_rows();
+		FortranInteger lda = m.num_rows();
+		FortranInteger M = m.num_rows();
+		FortranInteger N = m.num_rows();
 
 		getrf_(&M,&N,&my_lu[0][0],&lda,&my_IPIV[0],&my_info);
 
@@ -104,11 +104,11 @@ class LU {
 	
 		Matrix<Size, NRHS, Precision> result(rhs);
 
-		int M=rhs.num_cols();
-		int N=my_lu.num_rows();
+		FortranInteger M=rhs.num_cols();
+		FortranInteger N=my_lu.num_rows();
 		double alpha=1;
-		int lda=my_lu.num_rows();
-		int ldb=rhs.num_cols();
+		FortranInteger lda=my_lu.num_rows();
+		FortranInteger ldb=rhs.num_cols();
 		trsm_("R","U","N","N",&M,&N,&alpha,&my_lu[0][0],&lda,&result[0][0],&ldb);
 		trsm_("R","L","N","U",&M,&N,&alpha,&my_lu[0][0],&lda,&result[0][0],&ldb);
 
@@ -133,11 +133,11 @@ class LU {
 	
 		Vector<Size, Precision> result(rhs);
 
-		int M=1;
-		int N=my_lu.num_rows();
+		FortranInteger M=1;
+		FortranInteger N=my_lu.num_rows();
 		double alpha=1;
-		int lda=my_lu.num_rows();
-		int ldb=1;
+		FortranInteger lda=my_lu.num_rows();
+		FortranInteger ldb=1;
 		trsm_("R","U","N","N",&M,&N,&alpha,&my_lu[0][0],&lda,&result[0],&ldb);
 		trsm_("R","L","N","U",&M,&N,&alpha,&my_lu[0][0],&lda,&result[0],&ldb);
 
@@ -155,12 +155,12 @@ class LU {
 	/// multiply it by a matrix or a vector, use one of the backsub() functions, which will be faster.
 	Matrix<Size,Size,Precision> get_inverse(){
 		Matrix<Size,Size,Precision> Inverse(my_lu);
-		int N = my_lu.num_rows();
-		int lda=my_lu.num_rows();
-		int lwork=-1;
+		FortranInteger N = my_lu.num_rows();
+		FortranInteger lda=my_lu.num_rows();
+		FortranInteger lwork=-1;
 		Precision size;
 		getri_(&N, &Inverse[0][0], &lda, &my_IPIV[0], &size, &lwork, &my_info);
-		lwork=int(size);
+		lwork=FortranInteger(size);
 		Precision* WORK = new Precision[lwork];
 		getri_(&N, &Inverse[0][0], &lda, &my_IPIV[0], WORK, &lwork, &my_info);
 		delete [] WORK;
@@ -173,7 +173,8 @@ class LU {
 	/// diagonal and above parts of the matrix are U and the below-diagonal part, plus a unit diagonal, 
 	/// are L.
 	const Matrix<Size,Size,Precision>& get_lu()const {return my_lu;}
-
+	
+	private:
 	inline int get_sign() const {
 		int result=1;
 		for(int i=0; i<my_lu.num_rows()-1; i++){
@@ -183,6 +184,7 @@ class LU {
 		}
 		return result;
 	}
+	public:
 
 	/// Calculate the determinant of the matrix
 	inline Precision determinant() const {
@@ -199,8 +201,8 @@ class LU {
  private:
 
 	Matrix<Size,Size,Precision> my_lu;
-	int my_info;
-	Vector<Size, int> my_IPIV;	//Convenient static-or-dynamic array of ints :-)
+	FortranInteger my_info;
+	Vector<Size, FortranInteger> my_IPIV;	//Convenient static-or-dynamic array of ints :-)
 
 };
 }

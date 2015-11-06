@@ -1,37 +1,39 @@
 // -*- c++ -*-
 
 //     Copyright (C) 2009 Tom Drummond (twd20@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.  This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 
-#ifndef TOON_INCLUDE_CHOLESKY_H
-#define TOON_INCLUDE_CHOLESKY_H
+#ifndef TOON_INCLUDE_LAPACK_CHOLESKY_H
+#define TOON_INCLUDE_LAPACK_CHOLESKY_H
 
 #include <TooN/TooN.h>
+
+#include <TooN/lapack.h>
+
+#include <assert.h>
 
 namespace TooN {
 
@@ -64,102 +66,117 @@ giving symmetric M = L*D*L.T() where the diagonal of L contains ones
 @param Size the size of the matrix
 @param Precision the precision of the entries in the matrix and its decomposition
 **/
-template <int Size, tyepname Precision>
+template <int Size, typename Precision=DefaultPrecision>
 class Lapack_Cholesky {
 public:
 
     Lapack_Cholesky(){}
 	
 	template<class P2, class B2>
-	Lapack_Cholesky(const Matrix<Size, Size, P2, B2>& m) {
-		: my_cholesky(m) {
+	Lapack_Cholesky(const Matrix<Size, Size, P2, B2>& m) 
+	  : my_cholesky(m), my_cholesky_lapack(m) {
 		SizeMismatch<Size,Size>::test(m.num_rows(), m.num_cols());
 		do_compute();
 	}
 
 	/// Constructor for Size=Dynamic
-	Lapack_Cholesky(int size) : my_cholesky(size,size) {}
+	Lapack_Cholesky(int size) : my_cholesky(size,size), my_cholesky_lapack(size,size) {}
 
 	template<class P2, class B2> void compute(const Matrix<Size, Size, P2, B2>& m){
 		SizeMismatch<Size,Size>::test(m.num_rows(), m.num_cols());
 		SizeMismatch<Size,Size>::test(m.num_rows(), my_cholesky.num_rows());
-		my_cholesky=m;
+		my_cholesky_lapack=m;
 		do_compute();
 	}
 
 
 
 	void do_compute(){
-		int N = my_cholesky.num_rows();
-		int info;
-		dpotrf_("L", &N, L.get_data_ptr(), &N, &info);
+		FortranInteger N = my_cholesky.num_rows();
+		FortranInteger info;
+		potrf_("L", &N, my_cholesky_lapack.my_data, &N, &info);
+		for (int i=0;i<N;i++) {
+		  int j;
+		  for (j=0;j<=i;j++) {
+		    my_cholesky[i][j]=my_cholesky_lapack[j][i];
+		  }
+		  // LAPACK does not set upper triangle to zero, 
+		  // must be done here
+		  for (;j<N;j++) {
+		    my_cholesky[i][j]=0;
+		  }
+		}
 		assert(info >= 0);
 		if (info > 0) {
 			my_rank = info-1;
+		} else {
+		    my_rank = N;
 		}
 	}
 
 	int rank() const { return my_rank; }
 
 	template <int Size2, typename P2, typename B2>
-		Vector<Size, Precision> backsub (const Vector<Size2, P2, B2>& v) {
+		Vector<Size, Precision> backsub (const Vector<Size2, P2, B2>& v) const {
 		SizeMismatch<Size,Size2>::test(my_cholesky.num_cols(), v.size());
 
-		Vector<Size> result(v);
-		int N=L.num_rows();
-		int NRHS=1;
-		int info;
-		dpotrs_("L", &N, &NRHS, my_cholesky.my_data, &N, result.my_data, &N, &info);     
+		Vector<Size, Precision> result(v);
+		FortranInteger N=my_cholesky.num_rows();
+		FortranInteger NRHS=1;
+		FortranInteger info;
+		potrs_("L", &N, &NRHS, my_cholesky_lapack.my_data, &N, result.my_data, &N, &info);     
 		assert(info==0);
 		return result;
 	}
 
 	template <int Size2, int Cols2, typename P2, typename B2>
-		Matrix<Size, Cols2, Precision, ColMajor> backsub (const Matrix<Size2, Cols2, P2, B2>& m) {
+		Matrix<Size, Cols2, Precision, ColMajor> backsub (const Matrix<Size2, Cols2, P2, B2>& m) const {
 		SizeMismatch<Size,Size2>::test(my_cholesky.num_cols(), m.num_rows());
 
 		Matrix<Size, Cols2, Precision, ColMajor> result(m);
-		int N=my_cholesky.num_rows();
-		int NRHS=m.num_cols();
-		int info;
-		dpotrs_("L", &N, &NRHS, my_cholesky.my_data, &N, result.my_data, &N, &info);     
+		FortranInteger N=my_cholesky.num_rows();
+		FortranInteger NRHS=m.num_cols();
+		FortranInteger info;
+		potrs_("L", &N, &NRHS, my_cholesky_lapack.my_data, &N, result.my_data, &N, &info);     
 		assert(info==0);
 		return result;
 	}
-
-
-
-
 
 	template <int Size2, typename P2, typename B2>
 		Precision mahalanobis(const Vector<Size2, P2, B2>& v) const {
 		return v * backsub(v);
 	}
 
-	const Matrix<>& get_L() const {
+	Matrix<Size,Size,Precision> get_L() const {
 		return my_cholesky;
 	}
 
 	Precision determinant() const {
-		Precision det = L[0][0];
+		Precision det = my_cholesky[0][0];
 		for (int i=1; i<my_cholesky.num_rows(); i++)
-			det *= L[i][i];
+			det *= my_cholesky[i][i];
 		return det*det;
 	}
 
 	Matrix<> get_inverse() const {
-		Matrix<Size> M(my_cholesky);
-		int N = my_cholesky.num_rows();
-		int info;
-		dpotri_("L", &N, M.my_data, &N, &info);
+		Matrix<Size, Size, Precision> M(my_cholesky.num_rows(),my_cholesky.num_rows());
+		M=my_cholesky_lapack;
+		FortranInteger N = my_cholesky.num_rows();
+		FortranInteger info;
+		potri_("L", &N, M.my_data, &N, &info);
 		assert(info == 0);
-		TooN::Symmetrize(M);
+		for (int i=1;i<N;i++) {
+		  for (int j=0;j<i;j++) {
+		    M[i][j]=M[j][i];
+		  }
+		}
 		return M;
 	}
 
 private:
 	Matrix<Size,Size,Precision> my_cholesky;     
-	int rank;
+	Matrix<Size,Size,Precision> my_cholesky_lapack;     
+	FortranInteger my_rank;
 };
 
 

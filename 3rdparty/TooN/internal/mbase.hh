@@ -2,31 +2,29 @@
 
 // Copyright (C) 2009 Tom Drummond (twd20@cam.ac.uk),
 // Ed Rosten (er258@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.  This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 namespace TooN {
 
@@ -86,6 +84,8 @@ template<int Rows, int Cols, class Precision, int RowStride, int ColStride, clas
 	//Slices can never have tied strides
 	static const int SliceRowStride = RowStride == -2?-1: RowStride;
 	static const int SliceColStride = ColStride == -2?-1: ColStride;
+	
+	typedef Slice<SliceRowStride,SliceColStride> SliceBase;
 
 	int rowstride() const {
 		if(RowStride == -2) { //Normal tied stride
@@ -132,65 +132,106 @@ template<int Rows, int Cols, class Precision, int RowStride, int ColStride, clas
 	using Mem::num_rows;
 
 	Precision& operator()(int r, int c){
+		Internal::check_index(num_rows(), r);
+		Internal::check_index(num_cols(), c);
 		return my_data[r*rowstride() + c*colstride()];
 	}
 
 	const Precision& operator()(int r, int c) const {
+		Internal::check_index(num_rows(), r);
+		Internal::check_index(num_cols(), c);
 		return my_data[r*rowstride() + c*colstride()];
+	}
+
+	Precision& operator[](const std::pair<int, int>& index) {
+		Internal::check_index(num_rows(), index.first);
+		Internal::check_index(num_cols(), index.second);
+		return (*this)(index.first, index.second);
+	}
+
+	const Precision& operator[](const std::pair<int, int>& index) const {
+		Internal::check_index(num_rows(), index.first);
+		Internal::check_index(num_cols(), index.second);
+		return (*this)(index.first, index.second);
 	}
 
 	// this is the type of vector obtained by [ ]
 	typedef Vector<Cols, Precision, SliceVBase<SliceColStride> > Vec;
+	typedef Vector<Cols, const Precision, SliceVBase<SliceColStride> > CVec;
 	
 	Vec operator[](int r) {
 		Internal::check_index(num_rows(), r);
 		return Vec(my_data + rowstride()* r, num_cols(), colstride(), Slicing());
 	}
 
-	const Vec operator[](int r) const {
+	const CVec operator[](int r) const {
 		Internal::check_index(num_rows(), r);
-		return Vec(const_cast<Precision*>(my_data + rowstride()* r), num_cols(), colstride(), Slicing());
+		return CVec(my_data + rowstride()* r, num_cols(), colstride(), Slicing());
 	}
 
+	
+	//Generic matrix slicing
+	template<int Rstart, int Cstart, int Rlength, int Clength>
+	Matrix<Rlength, Clength, Precision, Slice<SliceRowStride,SliceColStride> > slice(int rs, int cs, int rl, int cl){
+		Internal::CheckSlice<Rows, Rstart, Rlength>::check(num_rows(), rs, rl);
+		Internal::CheckSlice<Cols, Cstart, Clength>::check(num_cols(), cs, cl);
 
+		//Always pass the size and stride as a run-time parameter. It will be ignored
+		//by SliceHolder (above) if it is statically determined.
+		return Matrix<Rlength, Clength, Precision, Slice<SliceRowStride,SliceColStride> >(
+		       my_data+rowstride()*(Rstart==Dynamic?rs:Rstart) + colstride()*(Cstart==Dynamic?cs:Cstart), 
+			   Rlength==Dynamic?rl:Rlength, 
+			   Clength==Dynamic?cl:Clength, 
+			   rowstride(), colstride(), Slicing());
+	}
 
+	template<int Rstart, int Cstart, int Rlength, int Clength>
+	const Matrix<Rlength, Clength, const Precision, Slice<SliceRowStride,SliceColStride> > slice(int rs, int cs, int rl, int cl) const{
+		Internal::CheckSlice<Rows, Rstart, Rlength>::check(num_rows(), rs, rl);
+		Internal::CheckSlice<Cols, Cstart, Clength>::check(num_cols(), cs, cl);
+
+		//Always pass the size and stride as a run-time parameter. It will be ignored
+		//by SliceHolder (above) if it is statically determined.
+		return Matrix<Rlength, Clength, const Precision, Slice<SliceRowStride,SliceColStride> >(
+		       my_data+rowstride()*(Rstart==Dynamic?rs:Rstart) + colstride()*(Cstart==Dynamic?cs:Cstart), 
+			   Rlength==Dynamic?rl:Rlength, 
+			   Clength==Dynamic?cl:Clength, 
+			   rowstride(), colstride(), Slicing());
+	}
+
+	//Special cases of slicing
 	template<int Rstart, int Cstart, int Rlength, int Clength>
 	Matrix<Rlength, Clength, Precision, Slice<SliceRowStride,SliceColStride> > slice()
 	{
-		//Always pass the size and stride as a run-time parameter. It will be ignored
-		//by SliceHolder (above) if it is statically determined.
-		Internal::CheckStaticSlice<Rows, Rstart, Rlength>::check(num_rows());
-		Internal::CheckStaticSlice<Cols, Cstart, Clength>::check(num_cols());
-		return Matrix<Rlength, Clength, Precision, Slice<SliceRowStride,SliceColStride> >(my_data+rowstride()*Rstart + colstride()*Cstart, Rlength, Clength, rowstride(), colstride(), Slicing());
+		//Extra checking in the static case
+		Internal::CheckSlice<Rows, Rstart, Rlength>::check();
+		Internal::CheckSlice<Cols, Cstart, Clength>::check();
+		return slice<Rstart, Cstart, Rlength, Clength>(Rstart, Cstart, Rlength, Clength);
 	}
 
 	template<int Rstart, int Cstart, int Rlength, int Clength>
-	const Matrix<Rlength, Clength, Precision, Slice<SliceRowStride,SliceColStride> > slice() const
+	const Matrix<Rlength, Clength, const Precision, Slice<SliceRowStride,SliceColStride> > slice() const
 	{
-		Internal::CheckStaticSlice<Rows, Rstart, Rlength>::check(num_rows());
-		Internal::CheckStaticSlice<Cols, Cstart, Clength>::check(num_cols());
-		return Matrix<Rlength, Clength, Precision, Slice<SliceRowStride,SliceColStride> >(const_cast<Precision*>(my_data+rowstride()*Rstart + colstride()*Cstart), Rlength, Clength, rowstride(), colstride(), Slicing());
+		Internal::CheckSlice<Rows, Rstart, Rlength>::check();
+		Internal::CheckSlice<Cols, Cstart, Clength>::check();
+		return slice<Rstart, Cstart, Rlength, Clength>(Rstart, Cstart, Rlength, Clength);
 	}
 
 	Matrix<-1, -1, Precision, Slice<SliceRowStride,SliceColStride> > slice(int rs, int cs, int rl, int cl){
-		Internal::CheckDynamicSlice::check(num_rows(), rs, rl);
-		Internal::CheckDynamicSlice::check(num_cols(), cs, cl);
-		return Matrix<-1, -1, Precision, Slice<SliceRowStride,SliceColStride> >(my_data+rowstride()*rs +colstride()*cs, rl, cl, rowstride(), colstride(), Slicing());
+		return slice<Dynamic, Dynamic, Dynamic, Dynamic>(rs, cs, rl, cl);
 	}
 
-	const Matrix<-1, -1, Precision, Slice<SliceRowStride,SliceColStride> > slice(int rs, int cs, int rl, int cl) const {
-		Internal::CheckDynamicSlice::check(num_rows(), rs, rl);
-		Internal::CheckDynamicSlice::check(num_cols(), cs, cl);
-		return Matrix<-1, -1, Precision, Slice<SliceRowStride,SliceColStride> >(const_cast<Precision*>(my_data+rowstride()*rs +colstride()*cs), rl, cl, rowstride(), colstride(), Slicing());
+	const Matrix<-1, -1, const Precision, Slice<SliceRowStride,SliceColStride> > slice(int rs, int cs, int rl, int cl) const {
+		return slice<Dynamic, Dynamic, Dynamic, Dynamic>(rs, cs, rl, cl);
 	}
 
-
+	//Other slice related functions.
 	Matrix<Cols, Rows, Precision, Slice<SliceColStride,SliceRowStride> > T(){
 		return Matrix<Cols, Rows, Precision, Slice<SliceColStride,SliceRowStride> >(my_data, num_cols(), num_rows(), colstride(), rowstride(), Slicing());
 	}
 
-	const Matrix<Cols, Rows, Precision, Slice<SliceColStride,SliceRowStride> > T() const{
-		return Matrix<Cols, Rows, Precision, Slice<SliceColStride,SliceRowStride> >(const_cast<Precision*>(my_data), num_cols(), num_rows(), colstride(), rowstride(), Slicing());
+	const Matrix<Cols, Rows, const Precision, Slice<SliceColStride,SliceRowStride> > T() const{
+		return Matrix<Cols, Rows, const Precision, Slice<SliceColStride,SliceRowStride> >(my_data, num_cols(), num_rows(), colstride(), rowstride(), Slicing());
 	}
 
 	static const int DiagSize = Internal::DiagSize<Rows, Cols>::size;
@@ -199,6 +240,11 @@ template<int Rows, int Cols, class Precision, int RowStride, int ColStride, clas
 	Vector<DiagSize, Precision, SliceVBase<DiagStride> > diagonal_slice()
 	{
 		return Vector<DiagSize, Precision, SliceVBase<DiagStride> >(my_data, std::min(num_cols(), num_rows()), rowstride() + colstride(), Slicing());
+	}
+
+	Vector<DiagSize, const Precision, SliceVBase<DiagStride> > diagonal_slice() const 
+	{
+		return Vector<DiagSize, const Precision, SliceVBase<DiagStride> >(my_data, std::min(num_cols(), num_rows()), rowstride() + colstride(), Slicing());
 	}
 };
 

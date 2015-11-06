@@ -1,23 +1,3 @@
-/*                       
-			 This file is part of the CVD Library.
-
-			 Copyright (C) 2005 The Authors
-
-			 This library is free software; you can redistribute it and/or
-			 modify it under the terms of the GNU Lesser General Public
-			 License as published by the Free Software Foundation; either
-			 version 2.1 of the License, or (at your option) any later version.
-
-			 This library is distributed in the hope that it will be useful,
-			 but WITHOUT ANY WARRANTY; without even the implied warranty of
-			 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    			 Lesser General Public License for more details.
-
-			 You should have received a copy of the GNU Lesser General Public
-			 License along with this library; if not, write to the Free Software
-			 Foundation, Inc., 
-			 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 #ifndef CVD_BUILTIN_TRAITS_H_
 #define CVD_BUILTIN_TRAITS_H_
 
@@ -87,33 +67,33 @@ namespace CVD
     };
 
 #if defined (CVD_HAVE_TOON)
-    template<int N> struct Component<TooN::Vector<N> >
+    template<int N, typename P> struct Component<TooN::Vector<N, P> >
     {
-      typedef double type;
+      typedef P type;
       static const size_t count=N;
       
-      static const type& get(const TooN::Vector<N>& pixel, size_t i)
+      static inline const P & get(const TooN::Vector<N, P>& pixel, size_t i)
       {
-	return pixel[i];
+          return pixel[i];
       }
 
-      static inline type& get(TooN::Vector<N>& pixel, size_t i)
+      static inline P& get(TooN::Vector<N, P>& pixel, size_t i)
       {
 	return pixel[i];
       }
     };
 
-    template<int N, int M> struct Component<TooN::Matrix<N,M> >
+    template<int N, int M, typename P> struct Component<TooN::Matrix<N,M, P> >
     {
-      typedef double type;
+      typedef P type;
       static const size_t count=N*M;
       
-      static const type& get(const TooN::Matrix<N,M>& pixel, size_t i)
+      static const P& get(const TooN::Matrix<N,M,P>& pixel, size_t i)
       {
 	return pixel[i/M][i%M];
       }
 
-      static inline type& get(TooN::Matrix<N,M>& pixel, size_t i)
+      static inline P& get(TooN::Matrix<N,M,P>& pixel, size_t i)
       {
 	return pixel[i/M][i%M];
       }

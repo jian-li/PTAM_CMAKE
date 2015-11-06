@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 // -*- c++ -*-
 
 #include <cvd/Linux/dvbuffer3.h>
@@ -59,14 +39,20 @@ namespace CVD
 	case ZOOM:          return FEATURE_ZOOM;
 	case PAN:           return FEATURE_PAN;
 	case TILT:          return FEATURE_TILT;
+	case FRAME_RATE:		return FEATURE_FRAME_RATE;
 	}
+		return -1;
     }
 
     RawDVBuffer3::RawDVBuffer3(DV3ColourSpace colourspace,
-			       unsigned int nCamNumber,
-			       ImageRef irSize,
+			       int nCamNumber,
+				   uint64_t,
+				   int,
+				   bool,
+				   bool,
+			       ImageRef ,
 			       float fFrameRate,
-			       ImageRef irOffset)
+			       ImageRef )
     {
       
       int mode;
@@ -148,7 +134,7 @@ namespace CVD
       mpLDCP->pRawDCV->auto_on_off(DC_from_DV3_Feature(nFeature), bValue);
     }
    
-    void RawDVBuffer3::power_on_off(DV3Feature nFeature, bool bValue)
+    void RawDVBuffer3::power_on_off(DV3Feature, bool)
     {
         // not implemented
         std::cout << "! Warning: DVBuffer3/libdc1394v1 power_on_off is only implemented for V2!" << std::endl;

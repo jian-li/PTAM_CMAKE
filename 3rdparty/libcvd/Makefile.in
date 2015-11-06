@@ -19,6 +19,7 @@ mandir = @mandir@
 includedir = @includedir@
 oldincludedir = /usr/include
 arch= @build_cpu@
+datarootdir=@datadir@
 
 
 CC = @CC@
@@ -61,7 +62,7 @@ MAKEINFO = @MAKEINFO@
 PACKAGE = @PACKAGE@
 VERSION = @VERSION@
 
-DEBUGEXTRA=-D_GLIBCXX_DEBUG -DCVD_IMAGE_DEBUG
+DEBUGEXTRA=@STLDEBUG@ -DCVD_IMAGE_DEBUG -DTOON_CHECK_BOUNDS -DTOON_INITIALIZE_NAN
 
 SUBDIRS =
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -82,29 +83,34 @@ GZIP_ENV = --best
 # CVD objects
 #
 
-CVD_OBJS=   cvd_src/cvd_timer.o                             \
+CVD_OBJS=   \
 			cvd_src/diskbuffer2.o                           \
 			cvd_src/deinterlacebuffer.o                     \
 			cvd_src/exceptions.o                            \
 			cvd_src/image_io.o                              \
 			cvd_src/bayer.o                                 \
+			cvd_src/morphology.o                            \
 			cvd_src/colourspace_convert.o                   \
-			cvd_src/half_sample.o                           \
 			cvd_src/draw.o                                  \
 			cvd_src/yuv422.o                                \
 			cvd_src/yuv420.o                                \
-			pnm_src/pnm_grok.o                              \
-			pnm_src/bmp.o                                   \
-			pnm_src/fits.o                                  \
-			pnm_src/save_postscript.o                       \
-			pnm_src/text_write.o                            \
-			pnm_src/text.o                                  \
+			cvd_src/image_io/pnm_grok.o                     \
+			cvd_src/image_io/bmp.o                          \
+			cvd_src/image_io/bmp_read.o                     \
+			cvd_src/image_io/bmp_write.o                    \
+			cvd_src/image_io/cvdimage.o                     \
+			cvd_src/image_io/fits.o                         \
+			cvd_src/image_io/fitswrite.o                    \
+			cvd_src/image_io/save_postscript.o              \
+			cvd_src/image_io/text_write.o                   \
+			cvd_src/image_io/text.o                         \
 			cvd_src/fast_corner.o                           \
 			cvd_src/convolution.o                           \
 			cvd_src/nonmax_suppression.o                    \
 			cvd_src/timeddiskbuffer.o                       \
 			cvd_src/videosource.o                           \
 			cvd_src/connected_components.o                  \
+			cvd_src/cvd_timer.o                             \
 			@dep_objects@
 
 ################################################################################
@@ -122,6 +128,18 @@ ifeq (@osx_hacks@,yes)
 	dsoname2=libcvd_debug-@major@.@minor@.dylib
 
 	shared=-dynamiclib
+	install_so=install-libs-so
+	install_so_debug=install-libs-debug-so
+else 
+ifeq (@cygwin_hacks@,yes)
+	dllname=cygcvd.dll
+	dllimportname=libcvd.dll.a
+
+	ddllname=cygcvd_debug.dll
+	ddllimportname=libcvd_debug.dll.a
+
+	install_so=install-libs-dll
+	install_so_debug=install-libs-debug-dll
 else
 	soname=libcvd.so
 	soname1=libcvd.so.@major@
@@ -135,22 +153,33 @@ else
 	set_dsoname=-Wl,-soname,libcvd_debug.so.@major@
 
 	shared=-shared
+	install_so=install-libs-so
+	install_so_debug=install-libs-debug-so
+endif
 endif
 
 OBJS=$(CVD_OBJS)
 
-DEBUG_OBJSA=$(OBJS:cvd_src%=debug/cvd_src%)
-DEBUG_OBJS=$(DEBUG_OBJSA:pnm_src%=debug/pnm_src%)
+DEBUG_OBJS=$(OBJS:cvd_src%=debug/cvd_src%)
 
 sos= $(soname) $(soname1) $(soname2) 
 dsos= $(dsoname) $(dsoname1) $(dsoname2) 
 
 
-all: libcvd.a $(soname) progs $(DTARGETS) libcvd_debug.a $(dsoname)
+ifeq (@debug_build@,yes)
+	DTARGETS=libcvd_debug.a $(dsoname) $(ddllname)
+	DINSTALL=install-libs-debug
+endif
+
+all: libcvd.a $(soname) $(dllname) progs $(DTARGETS)
+
+
+cyg%.dll lib%.dll.a: lib%.a
+	$(LD) -shared -o cyg$*.dll -Wl,--out-implib=lib$*.dll.a -Wl,--export-all-symbols  -Wl,--enable-auto-import -Wl,--whole-archive lib$*.a -Wl,--no-whole-archive $(LDFLAGS) $(LOADLIBES)
 
 $(soname): $(OBJS)
 	rm -f $(sos)
-	$(LD) $(shared) -o $(soname2) $(OBJS) $(LDFLAGS) $(LOADLIBES) $(sed_soname)
+	$(LD) $(shared) -o $(soname2) $(OBJS) $(LDFLAGS) $(LOADLIBES) $(set_soname)
 	ln -s $(soname2) $(soname1)
 	ln -s $(soname1) $(soname)
 
@@ -168,9 +197,17 @@ libcvd_debug.a: $(DEBUG_OBJS)
 	$(AR) crvs libcvd_debug.a $(DEBUG_OBJS)
 	$(RANLIB) libcvd_debug.a
 
-debug:
-	mkdir -p debug/cvd_src debug/cvd_src/IRIX debug/cvd_src/Linux debug/cvd_src/OSX debug/cvd_src/fast debug/cvd_src/i686 debug/cvd_src/noarch debug/pnm_src debug/cvd_src/thread debug/cvd_src/nothread
+#Automatically deduce the debug directories
+DEBUG_DIRS=$(shell find cvd_src -type d | xargs -n1 -Ix echo debug/x)
 
+#This the debug subdir all debug directories, so specifying a dependency on this
+#will ensure that all subdirs get created
+debug:$(DEBUG_DIRS)
+
+#Multiple targets are allowed on the left, so all directories can be created in batch
+#with a single rule
+$(DEBUG_DIRS):
+	mkdir -p $(DEBUG_DIRS)
 
 # Before we compile the test programs we need to augment the
 # search paths with the path to libcvd, and also add libcvd to the
@@ -179,7 +216,7 @@ CPPFLAGS = -I. @CPPFLAGS@
 ifneq (@osx_hacks@,yes)
     LDFLAGS = -Wl,-R. @LDFLAGS@
 endif
-LDFLAGS = -L. @LDFLAGS@
+LDFLAGS = @LDFLAGS@ -L.
 LOADLIBES = @LIBS@
 
 PROGS=@progs@ 
@@ -205,7 +242,7 @@ man: libcvd.a
 	touch man
 
 
-install: install-nodebug install-libs-debug
+install: install-nodebug $(DINSTALL)
 
 install-nodebug: install-progs install-headers install-libs 
 
@@ -217,52 +254,73 @@ install-headers:
 	mkdir -p $(DESTDIR)$(includedir)
 	cp -r cvd $(DESTDIR)$(includedir)
 
+
+
+
+
+
+install-libs-dll:$(dllname) $(dllimportname)
+	mkdir -p $(DESTDIR)$(bindir)
+	cp $(dllname) $(DESTDIR)$(bindir)
+	mkdir -p $(DESTDIR)$(libdir)
+	cp $(dllimportname) $(DESTDIR)$(libdir)
+
+install-libs-debug-dll:$(ddllname) $(ddllimportname)
+	mkdir -p $(DESTDIR)$(bindir)
+	cp $(ddllname) $(DESTDIR)$(bindir)
+	mkdir -p $(DESTDIR)$(libdir)
+	cp $(ddllimportname) $(DESTDIR)$(libdir)
+
+
+
+
+
+
+
 install-libs-so:$(soname)
 	mkdir -p $(DESTDIR)$(libdir)
+	rm -f  $(DESTDIR)$(libdir)/$(soname2) $(DESTDIR)$(libdir)/$(soname1) $(DESTDIR)$(libdir)/$(soname)
 	cp $(soname2) $(DESTDIR)$(libdir)
-	rm -f  $(libdir)/$(soname1) $(DESTDIR)$(libdir)/$(soname)
 	ln -s  $(libdir)/$(soname2) $(DESTDIR)$(libdir)/$(soname1)
 	ln -s  $(libdir)/$(soname1) $(DESTDIR)$(libdir)/$(soname)
+
+install-libs-debug-so:$(dsoname) 
+	rm -f  $(DESTDIR)$(libdir)/$(dsoname2) $(DESTDIR)$(libdir)/$(dsoname1) $(DESTDIR)$(libdir)/$(dsoname)
+	cp $(dsoname2) $(DESTDIR)$(libdir)
+	ln -s  $(libdir)/$(dsoname2) $(DESTDIR)$(libdir)/$(dsoname1)
+	ln -s  $(libdir)/$(dsoname1) $(DESTDIR)$(libdir)/$(dsoname)
+
+
+
+
+
 
 install-libs-a:libcvd.a
 	mkdir -p $(DESTDIR)$(libdir)
 	cp libcvd.a $(DESTDIR)$(libdir)
 
-install-libs:install-libs-so install-libs-a
-
-install-libs-debug:$(dsoname) libcvd_debug.a
+install-libs-debug-a:libcvd_debug.a
 	mkdir -p $(DESTDIR)$(libdir)
-	cp $(dsoname2) $(DESTDIR)$(libdir)
-	rm -f  $(libdir)/$(dsoname1) $(DESTDIR)$(libdir)/$(dsoname)
-	ln -s  $(libdir)/$(dsoname2) $(DESTDIR)$(libdir)/$(dsoname1)
-	ln -s  $(libdir)/$(dsoname1) $(DESTDIR)$(libdir)/$(dsoname)
 	cp libcvd_debug.a $(DESTDIR)$(libdir)
 
 
 
 
-clean:
-	/bin/rm -f tmp libcvd.a $(sos) libcvd_debug.a $(dsos)
-	find . -name '*.o' | xargs rm -f
-	find progs/ -perm +0100 -type f | xargs rm -f
-	rm -rf html man
 
+install-libs:$(install_so) install-libs-a
+install-libs-debug:$(install_so_debug) install-libs-debug-a
 distclean: clean
 	/bin/rm -f Makefile config.h config.status config.cache config.log cvd/config.h .deps config.dep_tmp
 	/bin/rm -rf debug
 
 .deps:
 	rm -f .sourcefiles
-	find . -name "*.cxx" -o -name "*.cc" -o -name "*.cpp" -o -name "*.c" -o -name "*.C" > .sourcefiles
+	find . -name "*.cxx" -o -name "*.cc" -o -name "*.cpp" -o -name "*.c" -o -name "*.C"  | grep -v python > .sourcefiles
 	rm -f .deps
 	bash generate_dependencies.bash "-I. $(CPPFLAGS) $(CXXFLAGS)" > .deps
 
 depend: .deps
 
-.PHONY: ChangeLog 
-
-ChangeLog:
-	cvs log | gawk -f make/log_to_changelog.awk > ChangeLog
 
 .PRECIOUS: %.o
 
@@ -295,10 +353,54 @@ debug/%.o: %.cxx debug
 debug/%.o: %.C debug
 	$(CXX) -I. $(CPPFLAGS) $(CXXFLAGS) $(DEBUGEXTRA) -c $< -o $@
 
-debug/%.o: %.s
+debug/%.o: %.s debug
 	as -g -o $@ $<
 
 %: %.o
 	$(CXX) -o $@ $< $(LDFLAGS) -lcvd  $(LOADLIBES)
+
+printlibs:
+	@echo $(LOADLIBES)
+
+
+
+
+.PHONY: test
+
+REGRESSIONS=distance_transform fast_corner load_and_save
+REGRESSION_OUT=$(patsubst %,tests/%.out, $(REGRESSIONS))
+
+test:$(REGRESSION_OUT)
+
+tests/%.test: tests/%.cc
+	$(CXX) -I. $(CPPFLAGS) $(CXXFLAGS) $< -o $@ -O3 -L. -lcvd
+
+tests/%.out: tests/%.test
+	./$<  && touch $@
+
+
+
+.PHONY: examples
+EXAMPLES=colourmaps distance_transform
+
+EXAMPLE_PROGS=$(patsubst %,examples/%, $(EXAMPLES))
+
+examples:$(EXAMPLE_PROGS)
+
+$(EXAMPLE_PROGS): % : %.cc
+	$(CXX) -I. $(CPPFLAGS) $(CXXFLAGS) $< -o $@ -O3 -L. -lcvd
+
+
+clean:
+	/bin/rm -f tmp libcvd.a $(sos) libcvd_debug.a $(dsos) $(dllname) $(ddllname) $(dllimportname) $(ddllimportname)
+	find . -name '*.o' | xargs rm -f
+	find progs/ -perm +0100 -type f | xargs rm -f
+	rm -rf html man
+	rm -f regressions/*.out
+	rm -rf $(EXAMPLE_PROGS)
+
+
+
+
 
 include .deps

@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 #ifndef CVD_IMAGE_CONVERT_H
 #define CVD_IMAGE_CONVERT_H
 
@@ -180,6 +160,27 @@ namespace CVD
   	template<class D> Image<D> convert_image(const BasicImage<C>& from);
 
   #endif
+    /// Can two types be converted with CVD::convert_image?
+    /// @ingroup gImageIO
+	template<class In, class Out> struct IsConvertible
+  	{ 
+		static const bool is=Pixel::DefaultConvertible<In>::is & Pixel::DefaultConvertible<Out>::is;
+	};
+
+    /// Can individual pixels of two types be converted with ConvertPixels::convert()?
+    /// E.g. Bayer patterns or YUV411 can usually not.
+    /// @ingroup gImageIO
+	template<class In, class Out> struct PixelByPixelConvertible
+  	{ 
+		static const bool is=Pixel::DefaultConvertible<In>::is & Pixel::DefaultConvertible<Out>::is;
+	};
+
+	/// Identity conversion by memcpy is always supported
+	template<class InOut> struct PixelByPixelConvertible<InOut, InOut>
+  	{ 
+		static const bool is=1;
+	};
+
 }
 
 #endif

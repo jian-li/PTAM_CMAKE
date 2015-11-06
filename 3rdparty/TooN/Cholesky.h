@@ -1,31 +1,29 @@
 // -*- c++ -*-
 
 //     Copyright (C) 2009 Tom Drummond (twd20@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.  This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 
 #ifndef TOON_INCLUDE_CHOLESKY_H
@@ -38,7 +36,8 @@ namespace TooN {
 
 /**
 Decomposes a positive-semidefinite symmetric matrix A (such as a covariance) into L*D*L^T, where L is lower-triangular and D is diagonal.
-Also can compute A = S*S^T, with S lower triangular.  The LDL^T form is faster to compute than the class Cholesky decomposition.
+Also can compute the classic A = L*L^T, with L lower triangular.  The LDL^T form is faster to compute than the classical Cholesky decomposition. 
+Use get_unscaled_L() and get_D() to access the individual matrices of L*D*L^T decomposition. Use get_L() to access the lower triangular matrix of the classic Cholesky decomposition L*L^T.
 The decomposition can be used to compute A^-1*x, A^-1*M, M*A^-1*M^T, and A^-1 itself, though the latter rarely needs to be explicitly represented.
 Also efficiently computes det(A) and rank(A).
 It can be used as follows:
@@ -91,7 +90,8 @@ public:
 		my_cholesky=m;
 		do_compute();
 	}
-
+	
+	private:
 	void do_compute() {
 		int size=my_cholesky.num_rows();
 		for(int col=0; col<size; col++){
@@ -106,6 +106,10 @@ public:
 				if(row==col){
 					// this is the diagonal element so don't divide
 					my_cholesky(row,col)=val;
+					if(val == 0){
+						my_rank = row;
+						return;
+					}
 					inv_diag=1/val;
 				} else {
 					// cache the value without division in the upper half
@@ -115,12 +119,15 @@ public:
 				}
 			}
 		}
+		my_rank = size;
 	}
+
+	public:
 
 	/// Compute x = A^-1*v
     /// Run time is O(N^2)
 	template<int Size2, class P2, class B2>
-	Vector<Size, Precision> backsub (const Vector<Size2, P2, B2>& v) {
+	Vector<Size, Precision> backsub (const Vector<Size2, P2, B2>& v) const {
 		int size=my_cholesky.num_rows();
 		SizeMismatch<Size,Size2>::test(size, v.size());
 
@@ -152,9 +159,10 @@ public:
 		return result;
 	}
 
-	///@overload
+	/**overload
+	*/
 	template<int Size2, int C2, class P2, class B2>
-	Matrix<Size, C2, Precision> backsub (const Matrix<Size2, C2, P2, B2>& m) {
+	Matrix<Size, C2, Precision> backsub (const Matrix<Size2, C2, P2, B2>& m) const {
 		int size=my_cholesky.num_rows();
 		SizeMismatch<Size,Size2>::test(size, m.num_rows());
 
@@ -193,7 +201,8 @@ public:
 		Matrix<Size,Size,Precision>I(Identity(my_cholesky.num_rows()));
 		return backsub(I);
 	}
-
+	
+	///Compute the determinant.
 	Precision determinant(){
 		Precision answer=my_cholesky(0,0);
 		for(int i=1; i<my_cholesky.num_rows(); i++){
@@ -202,8 +211,53 @@ public:
 		return answer;
 	}
 
+	template <int Size2, typename P2, typename B2>
+	Precision mahalanobis(const Vector<Size2, P2, B2>& v) const {
+		return v * backsub(v);
+	}
+
+	Matrix<Size,Size,Precision> get_unscaled_L() const {
+		Matrix<Size,Size,Precision> m(my_cholesky.num_rows(),
+					      my_cholesky.num_rows());
+		m=Identity;
+		for (int i=1;i<my_cholesky.num_rows();i++) {
+			for (int j=0;j<i;j++) {
+				m(i,j)=my_cholesky(i,j);
+			}
+		}
+		return m;
+	}
+			
+	Matrix<Size,Size,Precision> get_D() const {
+		Matrix<Size,Size,Precision> m(my_cholesky.num_rows(),
+					      my_cholesky.num_rows());
+		m=Zeros;
+		for (int i=0;i<my_cholesky.num_rows();i++) {
+			m(i,i)=my_cholesky(i,i);
+		}
+		return m;
+	}
+	
+	Matrix<Size,Size,Precision> get_L() const {
+		using std::sqrt;
+		Matrix<Size,Size,Precision> m(my_cholesky.num_rows(),
+					      my_cholesky.num_rows());
+		m=Zeros;
+		for (int j=0;j<my_cholesky.num_cols();j++) {
+			Precision sqrtd=sqrt(my_cholesky(j,j));
+			m(j,j)=sqrtd;
+			for (int i=j+1;i<my_cholesky.num_rows();i++) {
+				m(i,j)=my_cholesky(i,j)*sqrtd;
+			}
+		}
+		return m;
+	}
+
+	int rank() const { return my_rank; }
+
 private:
 	Matrix<Size,Size,Precision> my_cholesky;
+	int my_rank;
 };
 
 

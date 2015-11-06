@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 #ifndef PNM_SAVE_POSTSCRIPT_H
 #define PNM_SAVE_POSTSCRIPT_H
 
@@ -28,6 +8,7 @@
 #include <cvd/byte.h>
 #include <cvd/rgb.h>
 #include <cvd/internal/convert_pixel_types.h>
+#include <cvd/internal/io/parameter.h>
 
 namespace CVD
 {
@@ -40,7 +21,7 @@ namespace PS
 	class writer
 	{
 		public:
-			writer(std::ostream&, ImageRef size, const std::string& type);
+			writer(std::ostream&, ImageRef size, const std::string& type, const std::map<std::string, Parameter<> >& p);
 			~writer();
 
 			void write_raw_pixel_line(const byte*);
@@ -51,6 +32,7 @@ namespace PS
 				typedef byte type;
 			};		
 
+			static const int top_row_first=0;
 		protected:
 			std::auto_ptr<WritePimpl> t; 
 	};
@@ -75,7 +57,7 @@ namespace PS
 	class eps_writer
 	{
 		public:
-			eps_writer(std::ostream&, ImageRef size, const std::string& type);
+			eps_writer(std::ostream&, ImageRef size, const std::string& type, const std::map<std::string, Parameter<> >& p);
 			~eps_writer();
 
 			void write_raw_pixel_line(const byte*);
@@ -86,6 +68,7 @@ namespace PS
 				typedef typename writer::Outgoing<Incoming>::type type;
 			};		
 
+			static const int top_row_first=1;
 		protected:
 			std::auto_ptr<WritePimpl> t; 
 	};

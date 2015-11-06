@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 #ifndef CVD_RGBA_H
 #define CVD_RGBA_H
 
@@ -38,24 +18,21 @@ template <typename T>
 class Rgba
 {
 public:
-	/// Default constructor. Does nothing.
-	Rgba() {}
+	/// Default constructor. Sets everything to 0.
+	explicit Rgba() : red(0), green(0), blue(0), alpha(0) {}
+
 	/// Constructs a colour as specified
 	/// @param r The red component
 	/// @param g The green component
 	/// @param b The blue component
 	/// @param a The alpha component
-	Rgba(T r, T g, T b, T a) : red(r), green(g), blue(b), alpha(a) {}
+	inline explicit Rgba(T r, T g, T b, T a) : red(r), green(g), blue(b), alpha(a) {}
+	template <class S> inline explicit Rgba(const Rgba<S>& rgba) : red(static_cast<T>(rgba.red)), green(static_cast<T>(rgba.green)), blue(static_cast<T>(rgba.blue)), alpha(static_cast<T>(rgba.alpha)) {}
 
    T red; ///< The red component
    T green; ///< The green component
    T blue; ///< The blue component
    T alpha; ///< The alpha component
-
-   /// Assignment operator
-   /// @param c The colour to copy from
-   Rgba<T>& operator=(const Rgba<T>& c)
-      {red = c.red; green = c.green; blue = c.blue; alpha = c.alpha; return *this;}
 
 	/// Assignment operator between two different storage types, using the standard casts as necessary
 	/// @param c The colour to copy from

@@ -1,23 +1,3 @@
-/*                       
-This file is part of the CVD Library.
-
-Copyright (C) 2005 The Authors
-
-This library is free software; you can redistribute it and/or
-modify it under the terms of the GNU Lesser General Public
-License as published by the Free Software Foundation; either
-version 2.1 of the License, or (at your option) any later version.
-
-This library is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public
-License along with this library; if not, write to the Free Software
-Foundation, Inc., 
-51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 /*
  *  qtbuffer.h
  *  libcvd
@@ -93,28 +73,28 @@ namespace QT
         /** constructor
 		* @param dev file name of the device to open
 		* @param mode color palette to use (not supported yet)
-		* @param which camera to open (not supported yet)
+		* @param num which camera to open
 		*/
-      RawQT(const ImageRef & size, unsigned int mode, unsigned int num = 0, bool showSettingsDialog=false);
-        virtual ~RawQT();
+		RawQT(const ImageRef & size, unsigned int mode, unsigned int num = 0, bool showSettingsDialog=false, bool verbose = false);
+		virtual ~RawQT();
         
 		/** Get the width in pixels of the captured frames. */
 		ImageRef get_size() const;
 		
-        /** returns the data of the next captured frame */
-        unsigned char* get_frame();
-        /** returns the frame data to be used for further capturing */
-        void put_frame( unsigned char * );
-        /// Get the camera frame rate
-        double frame_rate();
-	/// Is there a new frame ready?
-	bool frame_pending();
-	/// Get the video format string
-	std::string get_frame_format_string();
-        
+		/** returns the data of the next captured frame */
+		unsigned char* get_frame();
+		/** returns the frame data to be used for further capturing */
+		void put_frame( unsigned char * );
+		/// Get the camera frame rate
+		double frame_rate();
+		/// Is there a new frame ready?
+		bool frame_pending();
+		/// Get the video format string
+		std::string get_frame_format_string();
+			
 	private:
 		RawQTPimpl * pimpl;
-                std::string frame_format_string;
+		std::string frame_format_string;
     };
 };
 
@@ -135,7 +115,7 @@ template <class T> class QTBuffer : public VideoBuffer<T>, public QT::RawQT
 public:
     /// Construct a video buffer
     /// @param dev file name of the device to use
-    QTBuffer(const ImageRef & size, unsigned int number = 0, bool showSettingsDialog=false ) : VideoBuffer<T>(VideoBufferType::Live), RawQT( size, 0, number, showSettingsDialog ) {}
+    QTBuffer(const ImageRef & size, unsigned int number = 0, bool showSettingsDialog=false, bool verbose = false ) : VideoBuffer<T>(VideoBufferType::Live), RawQT( size, 0, number, showSettingsDialog, verbose ) {}
 	
     virtual ImageRef size()
     {
@@ -143,7 +123,7 @@ public:
     }
     virtual VideoFrame<T> * get_frame()
     {
-        return new QTFrame<T>(timer.get_time(), (T *)RawQT::get_frame(), RawQT::get_size());
+        return new QTFrame<T>(get_time_of_day(), (T *)RawQT::get_frame(), RawQT::get_size());
     }
     virtual void put_frame(VideoFrame<T>* f)
     {

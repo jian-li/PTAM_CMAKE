@@ -1,3 +1,28 @@
+//Copyright (C) Edward Rosten 2009, 2010, 2012
+
+//All rights reserved.
+//
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
+
 #include <TooN/optimization/brent.h>
 #include <utility>
 #include <cmath>
@@ -5,9 +30,8 @@
 #include <cstdlib>
 
 namespace TooN{
-
 	namespace Internal{
-	
+
 
 	///Turn a multidimensional function in to a 1D function by specifying a
 	///point and direction. A nre function is defined:
@@ -29,25 +53,27 @@ namespace TooN{
 		LineSearch(const Vector<Size, Precision>& s, const Vector<Size, Precision>& d, const Func& func)
 		:start(s),direction(d),f(func)
 		{}
-		
+
 		///@param x Position to evaluate function
 		///@return \f$f(\vec{s} + x\vec{d})\f$
 		Precision operator()(Precision x) const
 		{
-			return f(start + x * direction); 
+			return f(start + x * direction);
 		}
 	};
-	
+
 	///Bracket a 1D function by searching forward from zero. The assumption
 	///is that a minima exists in \f$f(x),\ x>0\f$, and this function searches
 	///for a bracket using exponentially growning or shrinking steps.
 	///@param a_val The value of the function at zero.
 	///@param func Function to bracket
 	///@param initial_lambda Initial stepsize
-	///@return <code>m[i][0]</code> contains the values of \f$x\f$ for the bracket, in increasing order, 
-	///        and <code>m[i][1]</code> contains the corresponding values of \f$f(x)\f$.
+	///@param zeps Minimum bracket size.
+	///@return <code>m[i][0]</code> contains the values of \f$x\f$ for the bracket, in increasing order,
+	///        and <code>m[i][1]</code> contains the corresponding values of \f$f(x)\f$. If the bracket 
+	///        drops below the minimum bracket size, all zeros are returned.
 	///@ingroup gOptimize
-	template<typename Precision, typename Func> Matrix<3,2,Precision> bracket_minimum_forward(Precision a_val, const Func& func, Precision initial_lambda=1)
+	template<typename Precision, typename Func> Matrix<3,2,Precision> bracket_minimum_forward(Precision a_val, const Func& func, Precision initial_lambda, Precision zeps)
 	{
 		//Get a, b, c to  bracket a minimum along a line
 		Precision a, b, c, b_val, c_val;
@@ -59,14 +85,31 @@ namespace TooN{
 		b = lambda;
 		b_val = func(b);
 
+		while(std::isnan(b_val))
+		{
+			//We've probably gone in to an invalid region. This can happen even 
+			//if following the gradient would never get us there.
+			//try backing off lambda
+			lambda*=.5;
+			b = lambda;
+			b_val = func(b);
+
+		}
+
+
 		if(b_val < a_val) //We've gone downhill, so keep searching until we go back up
 		{
+			double last_good_lambda = lambda;
+			
 			for(;;)
 			{
 				lambda *= 2;
 				c = lambda;
 				c_val = func(c);
 
+				if(std::isnan(c_val))
+					break;
+				last_good_lambda = lambda;
 				if(c_val > 	b_val) // we have a bracket
 					break;
 				else
@@ -78,6 +121,27 @@ namespace TooN{
 
 				}
 			}
+
+			//We took a step too far.
+			//Back up: this will not attempt to ensure a bracket
+			if(std::isnan(c_val))
+			{
+				double bad_lambda=lambda;
+				double l=1;
+
+				for(;;)
+				{
+					l*=.5;
+					c = last_good_lambda + (bad_lambda - last_good_lambda)*l;
+					c_val = func(c);
+
+					if(!std::isnan(c_val))
+						break;
+				}
+
+
+			}
+
 		}
 		else //We've overshot the minimum, so back up
 		{
@@ -93,6 +157,8 @@ namespace TooN{
 
 				if(b_val < a_val)// we have a bracket
 					break;
+				else if(lambda < zeps)
+					return Zeros;
 				else //Contract the bracket
 				{
 					c = b;
@@ -100,7 +166,7 @@ namespace TooN{
 				}
 			}
 		}
-		
+
 		Matrix<3,2> ret;
 		ret[0] = makeVector(a, a_val);
 		ret[1] = makeVector(b, b_val);
@@ -138,7 +204,7 @@ int main()
 {
 	ConjugateGradient<2> cg(makeVector(0,0), Rosenbrock, RosenbrockDerivatives);
 
-	while(!cg.iterate(Rosenbrock, RosenbrockDerivatives))
+	while(cg.iterate(Rosenbrock, RosenbrockDerivatives))
 		cout << "y_" << iteration << " = " << cg.y << endl;
 
 	cout << "Optimal value: " << cg.y << endl;
@@ -156,11 +222,12 @@ will not be necessary.
 
 @ingroup gOptimize
 */
-template<int Size, class Precision=double> struct ConjugateGradient
+template<int Size=Dynamic, class Precision=double> struct ConjugateGradient
 {
-	const int size;      ///< Dimensionality of the space. 
+	const int size;      ///< Dimensionality of the space.
 	Vector<Size> g;      ///< Gradient vector used by the next call to iterate()
 	Vector<Size> h;      ///< Conjugate vector to be searched along in the next call to iterate()
+	Vector<Size> minus_h;///< negative of h as this is required to be passed into a function which uses references (so can't be temporary)
 	Vector<Size> old_g;  ///< Gradient vector used to compute $h$ in the last call to iterate()
 	Vector<Size> old_h;  ///< Conjugate vector searched along in the last call to iterate()
 	Vector<Size> x;      ///< Current position (best known point)
@@ -177,26 +244,50 @@ template<int Size, class Precision=double> struct ConjugateGradient
 	Precision linesearch_epsilon; ///< Additive term in tolerance to prevent excessive iterations if \f$x_\mathrm{optimal} = 0\f$. Known as \c ZEPS in numerical recipies. Defaults to 1e-20
 	int linesearch_max_iterations;  ///< Maximum number of iterations in the linesearch. Defaults to 100.
 
+	Precision bracket_epsilon; ///<Minimum size for initial minima bracketing. Below this, it is assumed that the system has converged. Defaults to 1e-20.
+
 	int iterations; ///< Number of iterations performed
-	
+
 	///Initialize the ConjugateGradient class with sensible values.
 	///@param start Starting point, \e x
 	///@param func  Function \e f  to compute \f$f(x)\f$
 	///@param deriv  Function to compute \f$\nabla f(x)\f$
 	template<class Func, class Deriv> ConjugateGradient(const Vector<Size>& start, const Func& func, const Deriv& deriv)
 	: size(start.size()),
-	  g(size),h(size),old_g(size),old_h(size),x(start),old_x(size)
+	  g(size),h(size),minus_h(size),old_g(size),old_h(size),x(start),old_x(size)
 	{
-		using std::numeric_limits;
+		init(start, func(start), deriv(start));
+	}	
 
+	///Initialize the ConjugateGradient class with sensible values.
+	///@param start Starting point, \e x
+	///@param func  Function \e f  to compute \f$f(x)\f$
+	///@param deriv  \f$\nabla f(x)\f$
+	template<class Func> ConjugateGradient(const Vector<Size>& start, const Func& func, const Vector<Size>& deriv)
+	: size(start.size()),
+	  g(size),h(size),minus_h(size),old_g(size),old_h(size),x(start),old_x(size)
+	{
+		init(start, func(start), deriv);
+	}	
+
+	///Initialize the ConjugateGradient class with sensible values. Used internally.
+	///@param start Starting point, \e x
+	///@param func  \f$f(x)\f$
+	///@param deriv  \f$\nabla f(x)\f$
+	void init(const Vector<Size>& start, const Precision& func, const Vector<Size>& deriv)
+	{
+
+		using std::numeric_limits;
+		using std::sqrt;
 		x = start;
-		
+
 		//Start with the conjugate direction aligned with
 		//the gradient
-		g = deriv(x);
+		g = deriv;
 		h = g;
+		minus_h=-h;
 
-		y = func(x);
+		y = func;
 		old_y = y;
 
 		tolerance = sqrt(numeric_limits<Precision>::epsilon());
@@ -209,9 +300,11 @@ template<int Size, class Precision=double> struct ConjugateGradient
 		linesearch_epsilon = 1e-20;
 		linesearch_max_iterations=100;
 
+		bracket_epsilon=1e-20;
+
 		iterations=0;
 	}
-	
+
 
 	///Perform a linesearch from the current point (x) along the current
 	///conjugate vector (h).  The linesearch does not make use of derivatives.
@@ -223,16 +316,17 @@ template<int Size, class Precision=double> struct ConjugateGradient
 	/// - old_y
 	/// - iterations
 	/// Note that the conjugate direction and gradient are not updated.
-	/// @param func Functor returning the function value at a given point. 
+	/// If bracket_minimum_forward detects a local maximum, then essentially a zero
+	/// sized step is taken.
+	/// @param func Functor returning the function value at a given point.
 	template<class Func> void find_next_point(const Func& func)
 	{
-		Internal::LineSearch<Size, Precision, Func> line(x, -h, func);
+		Internal::LineSearch<Size, Precision, Func> line(x, minus_h, func);
 
 		//Always search in the conjugate direction (h)
-
-		//First bracket a minimum. 
-		Matrix<3,2,Precision> bracket = Internal::bracket_minimum_forward(y, line, bracket_initial_lambda);
-
+		//First bracket a minimum.
+		Matrix<3,2,Precision> bracket = Internal::bracket_minimum_forward(y, line, bracket_initial_lambda, bracket_epsilon);
+		
 		double a = bracket[0][0];
 		double b = bracket[1][0];
 		double c = bracket[2][0];
@@ -241,26 +335,41 @@ template<int Size, class Precision=double> struct ConjugateGradient
 		double b_val = bracket[1][1];
 		double c_val = bracket[2][1];
 
-		//We should have a bracket here
-		assert(a < b && b < c);
-		assert(a_val > b_val && b_val < c_val);
-		
-		//Find the real minimum
-		Vector<2, Precision>  m = brent_line_search(a, b, c, b_val, line, linesearch_max_iterations, linesearch_tolerance, linesearch_epsilon); 
-	
-		assert(m[0] >= a && m[0] <= c);
-		assert(m[1] <= b_val);
-		
-		//Update the current position and value
 		old_y = y;
 		old_x = x;
-
-		x -= m[0] * h;
-		y = m[1];
-		
 		iterations++;
+		
+		//Local maximum achieved!
+		if(a==0 && b== 0 && c == 0)
+			return;
+
+		//We should have a bracket here
+
+		if(c < b)
+		{
+			//Failed to bracket due to NaN, so c is the best known point.
+			//Simply go there.
+			x-=h * c;
+			y=c_val;
+
+		}
+		else
+		{
+			assert(a < b && b < c);
+			assert(a_val > b_val && b_val < c_val);
+
+			//Find the real minimum
+			Vector<2, Precision>  m = brent_line_search(a, b, c, b_val, line, linesearch_max_iterations, linesearch_tolerance, linesearch_epsilon);
+
+			assert(m[0] >= a && m[0] <= c);
+			assert(m[1] <= b_val);
+
+			//Update the current position and value
+			x -= m[0] * h;
+			y = m[1];
+		}
 	}
-	
+
 	///Check to see it iteration should stop. You probably do not want to use
 	///this function. See iterate() instead. This function updates nothing.
 	bool finished()
@@ -268,26 +377,28 @@ template<int Size, class Precision=double> struct ConjugateGradient
 		using std::abs;
 		return iterations > max_iterations || 2*abs(y - old_y) <= tolerance * (abs(y) + abs(old_y) + epsilon);
 	}
-	
+
 	///After an iteration, update the gradient and conjugate using the
-	///Polak-Ribiere equations.  /@param deriv Functor to compute derivatives at
-	///the specified point. This function updates:
+	///Polak-Ribiere equations.
+	///This function updates:
 	///- g
 	///- old_g
 	///- h
 	///- old_h
-	template<class Deriv> void update_vectors_PR(const Deriv& deriv)
+	///@param grad The derivatives of the function at \e x
+	void update_vectors_PR(const Vector<Size>& grad)
 	{
 		//Update the position, gradient and conjugate directions
 		old_g = g;
 		old_h = h;
 
-		g = deriv(x);
+		g = grad;
 		//Precision gamma = (g * g - oldg*g)/(oldg * oldg);
 		Precision gamma = (g * g - old_g*g)/(old_g * old_g);
 		h = g + gamma * old_h;
+		minus_h=-h;
 	}
-	
+
 	///Use this function to iterate over the optimization. Note that after
 	///iterate returns false, g, h, old_g and old_h will not have been
 	///updated.
@@ -302,7 +413,7 @@ template<int Size, class Precision=double> struct ConjugateGradient
 	/// - h*
 	/// - old_h*
 	/// *'d variables not updated on the last iteration.
-	///@param func Functor returning the function value at a given point. 
+	///@param func Functor returning the function value at a given point.
 	///@param deriv Functor to compute derivatives at the specified point.
 	///@return Whether to continue.
 	template<class Func, class Deriv> bool iterate(const Func& func, const Deriv& deriv)
@@ -311,7 +422,7 @@ template<int Size, class Precision=double> struct ConjugateGradient
 
 		if(!finished())
 		{
-			update_vectors_PR(deriv);
+			update_vectors_PR(deriv(x));
 			return 1;
 		}
 		else

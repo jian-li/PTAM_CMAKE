@@ -1,23 +1,3 @@
-/*                       
-			 This file is part of the CVD Library.
-
-			 Copyright (C) 2005 The Authors
-
-			 This library is free software; you can redistribute it and/or
-			 modify it under the terms of the GNU Lesser General Public
-			 License as published by the Free Software Foundation; either
-			 version 2.1 of the License, or (at your option) any later version.
-
-			 This library is distributed in the hope that it will be useful,
-			 but WITHOUT ANY WARRANTY; without even the implied warranty of
-			 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-			 Lesser General Public License for more details.
-
-			 You should have received a copy of the GNU Lesser General Public
-			 License along with this library; if not, write to the Free Software
-			 Foundation, Inc., 
-			 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 //////////////////////////////////////////////////////////////////////////
 //                                                                      //
 //  rgb.h                                                               //
@@ -46,15 +26,17 @@ template <class T>
 class Rgb
 {
 public:
-  /// Default constructor. Does nothing.
-  Rgb() {}
+  /// Default constructor. Sets everything to 0.
+  explicit Rgb() : red(0), green(0), blue(0) {}
+
   /// Constructs a colour as specified
   /// @param r The red component
   /// @param g The green component
   /// @param b The blue component
-  inline Rgb(T r, T g, T b) : red(r),green(g),blue(b) {}
-    template <class S> inline explicit Rgb(const Rgb<S>& rgb) : red(static_cast<T>(rgb.red)), green(static_cast<T>(rgb.green)), blue(static_cast<T>(rgb.blue)) {}
-      
+  explicit inline Rgb(T r, T g, T b) : red(r),green(g),blue(b) {}
+
+  template <class S> inline explicit Rgb(const Rgb<S>& rgb) : red(static_cast<T>(rgb.red)), green(static_cast<T>(rgb.green)), blue(static_cast<T>(rgb.blue)) {}
+
   T red;   ///< The red component
   T green; ///< The green component
   T blue;  ///< The blue component
@@ -73,12 +55,17 @@ public:
   /// @param c Rgb to compare with
   inline bool operator!=(const Rgb<T>& c) const
   {return red != c.red || green != c.green || blue != c.blue;}
-		
+
   /// Assignment operator between two different storage types, using the standard casts as necessary
   /// @param c The colour to copy from
-    template <class T2>
-      inline Rgb<T>& operator=(const Rgb<T2>& c){ red = c.red; green=c.green;  blue=c.blue; return *this;}
-		  
+  template <class T2>
+  inline Rgb<T>& operator=(const Rgb<T2>& c){
+    red = static_cast<T>(c.red);
+    green = static_cast<T>(c.green);
+    blue = static_cast<T>(c.blue);
+    return *this;
+  }
+
   //   T to_grey() {return 0.3*red + 0.6*green + 0.1*blue;}
 };
   

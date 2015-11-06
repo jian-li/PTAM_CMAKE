@@ -1,29 +1,10 @@
-/*
-        This file is part of the CVD Library.
-
-        Copyright (C) 2005 The Authors
-
-        This library is free software; you can redistribute it and/or
-        modify it under the terms of the GNU Lesser General Public
-        License as published by the Free Software Foundation; either
-        version 2.1 of the License, or (at your option) any later version.
-
-        This library is distributed in the hope that it will be useful,
-        but WITHOUT ANY WARRANTY; without even the implied warranty of
-        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-        Lesser General Public License for more details.
-
-        You should have received a copy of the GNU Lesser General Public
-        License along with this library; if not, write to the Free Software
-        Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 
 #ifndef CVD_INC_INTEGRAL_IMAGE_H
 #define CVD_INC_INTEGRAL_IMAGE_H
 
 #include <cvd/image.h>
 #include <cvd/vision.h>
+#include <cvd/internal/pixel_operations.h>
 
 namespace CVD
 {
@@ -41,7 +22,7 @@ namespace CVD
 		if( in.size() != out.size())
 			throw Exceptions::Vision::IncompatibleImageSizes("integral_image");
 
-		out[0][0] = in[0][0];
+		Pixel::operations<D>::assign(out[0][0], in[0][0]);
 		//Do the first row. 
 		for(int x=1; x < in.size().x; x++)
 			out[0][x] =out[0][x-1] + in[0][x];
@@ -53,12 +34,13 @@ namespace CVD
 		//Do the remainder of the image
 		for(int y=1; y < in.size().y; y++)
 		{
-			D sum = in[y][0];
+			D sum;
+			Pixel::operations<D>::assign(sum,in[y][0]);
 
 			for(int x=1; x < in.size().x; x++)
 			{
 				sum+= in[y][x];
-				out[y][x] = sum + out[y-1][x];
+				Pixel::operations<D>::assign(out[y][x],sum + out[y-1][x]);
 			}
 		}
 	}

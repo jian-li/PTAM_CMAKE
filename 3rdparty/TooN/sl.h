@@ -2,38 +2,38 @@
 
 // Copyright (C) 2005,2009 Tom Drummond (twd20@cam.ac.uk),
 // Gerhard Reitmayr (gr281@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.  This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 #ifndef TOON_INCLUDE_SL_H
 #define TOON_INCLUDE_SL_H
 
 #include <TooN/TooN.h>
 #include <TooN/helpers.h>
-#include <TooN/LU.h>
+#include <TooN/gaussian_elimination.h>
+#include <TooN/determinant.h>
+#include <cassert>
 
 namespace TooN {
 
@@ -53,7 +53,7 @@ template <int N, typename P> std::istream & operator>>(std::istream &, SL<N, P> 
 /// This choice represents the fact that SL(n) can be interpreted as the product
 /// of all symmetric matrices with det() = 1 times SO(n).
 /// @ingroup gTransforms
-template <int N, typename Precision = double>
+template <int N, typename Precision = DefaultPrecision>
 class SL {
 	friend std::istream & operator>> <N,Precision>(std::istream &, SL &);
 public:
@@ -69,7 +69,7 @@ public:
 
 	/// copy constructor from a matrix, coerces matrix to be of determinant = 1
 	template <int R, int C, typename P, typename A>
-	SL(Matrix<R,C,P,A>& M) : my_matrix(M) { coerce(); }
+	SL(const Matrix<R,C,P,A>& M) : my_matrix(M) { coerce(); }
 
 	/// returns the represented matrix
 	const Matrix<N,N,Precision> & get_matrix() const { return my_matrix; }
@@ -77,14 +77,19 @@ public:
 	SL inverse() const { return SL(*this, Invert()); }
 
 	/// multiplies to SLs together by multiplying the underlying matrices
-	SL operator*( const SL & rhs) const { return SL(*this, rhs); }
+	template <typename P>
+	SL<N,typename Internal::MultiplyType<Precision, P>::type> operator*( const SL<N,P> & rhs) const { return SL<N,typename Internal::MultiplyType<Precision, P>::type>(*this, rhs); }
+
 	/// right multiplies this SL with another one
-	SL operator*=( const SL & rhs) { *this = *this*rhs; return *this; }
+	template <typename P>
+	SL operator*=( const SL<N,P> & rhs) { *this = *this*rhs; return *this; }
 
 	/// exponentiates a vector in the Lie algebra to compute the corresponding element
 	/// @arg v a vector of dimension SL::dim
 	template <int S, typename P, typename B>
 	static inline SL exp( const Vector<S,P,B> &);
+
+	inline Vector<N*N-1, Precision> ln() const ;
 
 	/// returns one generator of the group. see SL for a detailed description of 
 	/// the generators used.
@@ -93,14 +98,18 @@ public:
 
 private:
 	struct Invert {};
-	SL( const SL & from, struct Invert ) : my_matrix(LU<N>(from.get_matrix()).get_inverse()) {}
+	SL( const SL & from, struct Invert ) {
+		const Matrix<N> id = Identity;
+		my_matrix = gaussian_elimination(from.my_matrix, id);
+	}
 	SL( const SL & a, const SL & b) : my_matrix(a.get_matrix() * b.get_matrix()) {}
 
 	void coerce(){
 		using std::abs;
-		Precision det = LU<N>(my_matrix).determinant();
+		Precision det = determinant(my_matrix);
 		assert(abs(det) > 0);
-		my_matrix /= det;
+        using std::pow;
+		my_matrix /= pow(det, 1.0/N);
 	}
 
 	/// these constants indicate which parts of the parameter vector 
@@ -126,6 +135,28 @@ inline SL<N, Precision> SL<N, Precision>::exp( const Vector<S,P,B> & v){
 	SL<N, Precision> result;
 	result.my_matrix = TooN::exp(t);
 	return result;
+}
+
+template <int N, typename Precision>
+inline Vector<N*N-1, Precision> SL<N, Precision>::ln() const {
+	const Matrix<N> l = TooN::log(my_matrix);
+	Vector<SL<N,Precision>::dim, Precision> v;
+	Precision last = 0;
+	for(int i = 0; i < DIAG_LIMIT; ++i){	// diagonal elements
+		v[i] = l(i,i) + last;
+		last = l(i,i);
+	}
+	for(int i = DIAG_LIMIT, row = 0, col = 1; i < SYMM_LIMIT; ++i) {	// calculate symmetric and antisymmetric in one go
+		// do the right thing here to calculate the correct indices !
+		v[i] = (l(row, col) + l(col, row))*0.5;
+		v[i+COUNT_SYMM] = (-l(row, col) + l(col, row))*0.5;
+		++col;
+		if( col == N ){
+			++row;
+			col = row+1;
+		}
+	}
+	return v;
 }
 
 template <int N, typename Precision>

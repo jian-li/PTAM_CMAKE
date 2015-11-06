@@ -1,28 +1,9 @@
-/*
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 #ifndef CVD_GL_HELPERS_H
 #define CVD_GL_HELPERS_H
 
 #include <iostream>
 #include <map>
+#include <utility>
 
 #include <cvd/image_ref.h>
 #include <cvd/image.h>
@@ -35,16 +16,25 @@
 #ifdef WIN32
 #include <windows.h>
 #endif
+
+#ifdef _OSX
+#include <OpenGL/gl.h>
+#include <OpenGL/glu.h>
+#else
 #include <GL/gl.h>
 #include <GL/glu.h>
+#endif
+
+
+
 #include <cvd/internal/gl_types.h>
 
 #ifdef CVD_HAVE_TOON
 #include <TooN/TooN.h>
-#include <cvd/se3.h>
-#include <cvd/so3.h>
-#include <cvd/se2.h>
-#include <cvd/so2.h>
+#include <TooN/se3.h>
+#include <TooN/so3.h>
+#include <TooN/se2.h>
+#include <TooN/so2.h>
 #endif
 
 namespace CVD
@@ -84,15 +74,14 @@ namespace CVD
 		glRasterPos2i(i.x, i.y);
 	}
 
-    /// draws a line from x1 to x2
-    /// any type that is accepted by glVertex is possible
-    /// @ingroup gGL
-    template <class P1, class P2> inline void glLine(const P1& x1, const P2& x2) {
-	glBegin(GL_LINES);
-	glVertex(x1);
-	glVertex(x2);
-	glEnd();
-    }
+	/// Draws a rectangle by specifing two opposing vertices
+	/// @param p the first vertex
+	/// @param q the second vertex
+	/// @ingroup gGL
+	inline void glRect( const ImageRef & p, const ImageRef & q)
+	{
+	    glRecti(p.x, p.y, q.x, q.y);
+	}
 
 	#ifdef CVD_HAVE_TOON
 	/// Specify the (x,y) co-ordinates of a vertex
@@ -141,6 +130,15 @@ namespace CVD
 	inline void glTexCoord(const TooN::Vector<4>& v)
 	{
 		glTexCoord4d(v[0], v[1], v[2], v[3]);
+	}
+	
+	/// Draws a rectangle by specifing two opposing vertices
+	/// @param p the first vertex
+	/// @param q the second vertex
+	/// @ingroup gGL
+	inline void glRect( const TooN::Vector<2> & p, const TooN::Vector<2> & q)
+	{
+	    glRectd(p[0], p[1], q[0], q[1]);
 	}
 
 #ifdef GL_GLEXT_PROTOTYPES
@@ -357,14 +355,14 @@ namespace CVD
 	/// @param far far clipping plane
 	/// @ingroup gGL
 	template <typename P, typename A>
-	inline void glFrustum( const TooN::Vector<4,P,A> & params, double width, double height, double near = 0.1, double far = 100)
+	inline void glFrustum( const TooN::Vector<4,P,A> & params, double width, double height, double nearPlane = 0.1, double farPlane = 100)
 	{
 		GLdouble left, right, bottom, top;
-		left = -near * params[2] / params[0];
-		top = near * params[3] / params[1];
-		right = near * ( width - params[2] ) / params[0];
-		bottom = - near * ( height - params[3] ) / params[1];
-		::glFrustum( left, right, bottom, top, near, far );
+		left = -nearPlane * params[2] / params[0];
+		top = nearPlane * params[3] / params[1];
+		right = nearPlane * ( width - params[2] ) / params[0];
+		bottom = - nearPlane * ( height - params[3] ) / params[1];
+		::glFrustum( left, right, bottom, top, nearPlane, farPlane );
 	}
 
 	/// sets a gl frustum taking the first 4 parameters from the camera model. see @see glFrustum for
@@ -375,9 +373,9 @@ namespace CVD
 	/// @param near near clipping plane
 	/// @param far far clipping plane
 	/// @ingroup gGL
-	template <class CAMERA> inline void glFrustum( const CAMERA & camera, double width, double height, double near = 0.1, double far = 100)
+	template <class CAMERA> inline void glFrustum( const CAMERA & camera, double width, double height, double nearPlane = 0.1, double farPlane = 100)
 	{
-		glFrustum( camera.get_parameters().template slice<0,4>(), width, height, near, far);
+		glFrustum( camera.get_parameters().template slice<0,4>(), width, height, nearPlane, farPlane);
 	}
 
 	/// Sets up an ortho projection from a simple Vector<6>
@@ -440,6 +438,16 @@ namespace CVD
 		}
 	}
 	#endif
+
+	/// draws a line from x1 to x2
+	/// any type that is accepted by glVertex is possible
+	/// @ingroup gGL
+	template <class P1, class P2> inline void glLine(const P1& x1, const P2& x2) {
+		glBegin(GL_LINES);
+		glVertex(x1);
+		glVertex(x2);
+		glEnd();
+	}
 
 	/// sets a whole list of vertices stored in a std::vector. It uses the various
 	/// glVertex helpers defined in this header file.
@@ -505,13 +513,31 @@ namespace CVD
 		glColor4f(c.red, c.green, c.blue, c.alpha);
 	}
 
+	namespace Internal{
+			static inline int cvdalignof(const void* ptr)
+			{
+				size_t p = (size_t)ptr;
+
+				if(p&3)
+					if(p&1)
+						return 1;
+					else 
+						return 2;
+				else
+					if(p&4)
+						return 4;
+					else
+						return 8;
+			}
+	}
+
  	/// Draw an image to the frame buffer at the current raster position.
 	/// Use glRasterPos to set the current raster position
 	/// @param i The image to draw
 	///@ingroup gGL
 	template<class C> inline void glDrawPixels(const SubImage<C>& i)
 	{
-		::glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		::glPixelStorei(GL_UNPACK_ALIGNMENT, std::min(Internal::cvdalignof(i[0]), Internal::cvdalignof(i[1])));
 		::glPixelStorei(GL_UNPACK_ROW_LENGTH, i.row_stride());
 		::glDrawPixels(i.size().x, i.size().y, gl::data<C>::format, gl::data<C>::type, i.data());
 		::glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);

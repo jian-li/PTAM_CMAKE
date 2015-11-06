@@ -1,29 +1,11 @@
-/*			 
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA	 02110-1301  USA
-*/
 #ifndef CVD_RGB_TRAITS_H
 #define CVD_RGB_TRAITS_H
 
 #include <cvd/rgb.h>
 #include <cvd/rgba.h>
 #include <cvd/rgb8.h>
+#include <cvd/argb.h>
+#include <cvd/bgrx.h>
 #include <cvd/la.h>
 #include <cvd/internal/builtin_components.h>
 #include <cvd/internal/pixel_traits.h>
@@ -52,6 +34,27 @@ namespace CVD
 				// return i == 0 ? pixel.red : (i==1 ? pixel.green : pixel.blue);
 			}
 		};
+
+		template<class P> struct Component<Bgrx<P> >
+		{
+			typedef P type;
+			static const size_t count = 3;
+
+			
+			//This version is much faster, with -funroll-loops
+			static const P& get(const Bgrx<P>& pixel, size_t i)
+			{
+				return *(reinterpret_cast<const P*>(&pixel)+i);
+				//return i == 0 ? pixel.blue : (i==1 ? pixel.green : pixel.red);
+			}
+
+			static P& get(Bgrx<P>& pixel, size_t i)
+			{
+				return *(reinterpret_cast<P*>(&pixel)+i);
+				// return i == 0 ? pixel.blue : (i==1 ? pixel.green : pixel.red);
+			}
+		};
+
 
 		template<> struct Component<Rgb8>
 		{
@@ -105,10 +108,29 @@ namespace CVD
 			}
 		};
 
+		template<class P> struct Component<Argb<P> >
+		{
+			typedef P type;
+			static const size_t count = 4;
+
+			static const P& get(const Argb<P>& pixel, size_t i)
+			{
+				//return *(reinterpret_cast<const P*>(&pixel)+i);
+				return i == 0 ? pixel.red : (i==1 ? pixel.green : (i==2 ?pixel.blue: pixel.alpha));
+			}
+
+			static P& get(Argb<P>& pixel, size_t i)
+			{
+				//return *(reinterpret_cast<P*>(&pixel)+i);
+				return i == 0 ? pixel.red : (i==1 ? pixel.green : (i==2 ?pixel.blue: pixel.alpha));
+			}
+		};
+
 		template <class T> struct is_Rgb { enum { value = 0 }; };
 		template <class T> struct is_Rgb<Rgb<T> > { enum { value = 1 }; };
 		template <> struct is_Rgb<Rgb8> { enum { value = 1 }; };
 		template <class T> struct is_Rgb<Rgba<T> > { enum { value = 1 }; };
+		template <class T> struct is_Rgb<Argb<T> > { enum { value = 1 }; };
 
 		template<class T, int LIFT> struct traits<Rgb<T>, LIFT> 
 		{ 

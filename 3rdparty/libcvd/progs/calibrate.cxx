@@ -19,6 +19,8 @@
 #include <cvd/timer.h>
 #include <cvd/colourspaces.h>
 #include <cvd/colourspace_convert.h>
+#include <cvd/colourspacebuffer.h>
+#include <cvd/videosource.h>
 
 using namespace std;
 using namespace TooN;
@@ -27,17 +29,12 @@ using namespace CVD;
 #include <X11/keysym.h>
 #include <X11/Xlib.h>
 
-#ifdef CVD_HAVE_QTBUFFER
-typedef vuy422 CAMERA_PIXEL;
-#else
 typedef byte CAMERA_PIXEL;
-#endif
-
 VideoBuffer<CAMERA_PIXEL>* videoBuffer=0;
 
 // global configuration variables, can be set via command line options
 #ifdef CVD_HAVE_QTBUFFER
-string videoDevice = "qt://0";
+string videoDevice = "colourspace:[from=yuv422]//qt://0";
 #else
 string videoDevice = "v4l2:///dev/video0";
 #endif
@@ -582,24 +579,24 @@ bool sanityCheck(const Vector<2>& inPoint, image_interpolate<Interpolate::Biline
 
     if(blWhite)
     {
-	if(midVal - tlVal < 0.05)
+	if(midVal - tlVal < 0.02)
 	    return false;
-	if(trVal - midVal < 0.05)
+	if(trVal - midVal < 0.02)
 	    return false;
-	if(blVal - midVal < 0.05)
+	if(blVal - midVal < 0.02)
 	    return false;
-	if(midVal - brVal < 0.05)
+	if(midVal - brVal < 0.02)
 	    return false;
     }
     else
     {
-	if(tlVal - midVal < 0.05)
+	if(tlVal - midVal < 0.02)
 	    return false;
-	if(midVal - trVal < 0.05)
+	if(midVal - trVal < 0.02)
 	    return false;
-	if(midVal - blVal < 0.05)
+	if(midVal - blVal < 0.02)
 	    return false;
-	if(brVal - midVal < 0.05)
+	if(brVal - midVal < 0.02)
 	    return false;
     }
 
@@ -708,6 +705,7 @@ bool optimiseIntersection(image_interpolate<Interpolate::Bilinear, float> &imgIn
 int main(int argc, char* argv[])
 {
     getOptions(argc, argv);
+	cvd_timer timer;
 
     string titlePrefix = "Calibrate: Align grid ([ and ] to resize)";
     GLWindow disp(videoBuffer->size(), titlePrefix);
@@ -813,12 +811,20 @@ int main(int argc, char* argv[])
 	videoBuffer->put_frame(vframe);
 
 	glDisable(GL_BLEND);
-	glEnable(GL_TEXTURE_RECTANGLE_NV);
+	GLenum texTarget;
+	#ifdef GL_TEXTURE_RECTANGLE_ARB
+		texTarget=GL_TEXTURE_RECTANGLE_ARB;
+	#elif defined GL_TEXTURE_RECTANGLE_NV
+		texTarget=GL_TEXTURE_RECTANGLE_NV;
+	#else
+		texTarget=GL_TEXTURE_RECTANGLE_EXT;
+	#endif
+	glEnable(texTarget);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glTexParameterf( GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-	glTexParameterf( GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameterf( texTarget, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameterf( texTarget, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-	glTexImage2D(temp, 0, GL_TEXTURE_RECTANGLE_NV);
+	glTexImage2D(temp, 0, texTarget);
 	glBegin(GL_QUADS);
 	glTexCoord2i(0, 0);
 	glVertex2i(0,0);
@@ -829,7 +835,8 @@ int main(int argc, char* argv[])
 	glTexCoord2i(0, temp.size().y);
 	glVertex2i(0, disp.size().y);
 	glEnd ();
-	glDisable(GL_TEXTURE_RECTANGLE_NV);
+	glDisable(texTarget);
+
 	glEnable(GL_BLEND);
 
 	//this is the bit that does the calibrating

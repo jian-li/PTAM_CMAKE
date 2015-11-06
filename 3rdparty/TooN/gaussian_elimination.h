@@ -2,44 +2,47 @@
 
 // Copyright (C) 2008,2009 Ethan Eade, Tom Drummond (twd20@cam.ac.uk)
 // and Ed Rosten (er258@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.  This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 
 #ifndef GAUSSIAN_ELIMINATION_H
 #define GAUSSIAN_ELIMINATION_H
 
 #include <utility>
+#include <cmath>
 #include <TooN/TooN.h>
 
 namespace TooN {
 	///@ingroup gEquations
+	///Return the solution for \f$Ax = b\f$, given \f$A\f$ and \f$b\f$
+	///@param A \f$A\f$
+	///@param b \f$b\f$
     template<int N, typename Precision>
 	inline Vector<N, Precision> gaussian_elimination (Matrix<N,N,Precision> A, Vector<N, Precision> b) {
 		using std::swap;
+		using std::abs;
 
 		int size=b.size();
 
@@ -89,15 +92,19 @@ namespace TooN {
 	{
 		template<int i, int j, int k> struct Size3
 		{
-			static const int s=(i!= -1)?i:(j!=-1?j:k);
+			static const int s = !IsStatic<i>::is?i: (!IsStatic<j>::is?j:k);
 		};
 
 	};
 
 	///@ingroup gEquations
+	///Return the solution for \f$Ax = b\f$, given \f$A\f$ and \f$b\f$
+	///@param A \f$A\f$
+	///@param b \f$b\f$
     template<int R1, int C1, int R2, int C2, typename Precision>
 	inline Matrix<Internal::Size3<R1, C1, R2>::s, C2, Precision> gaussian_elimination (Matrix<R1,C1,Precision> A, Matrix<R2, C2, Precision> b) {
 		using std::swap;
+		using std::abs;
 		SizeMismatch<R1, C1>::test(A.num_rows(), A.num_cols());
 		SizeMismatch<R1, R2>::test(A.num_rows(), b.num_rows());
 
@@ -108,7 +115,7 @@ namespace TooN {
 			Precision maxval = abs(A[i][i]);
 			
 			for (int ii=i+1; ii<size; ++ii) {
-				double v =  abs(A[ii][i]);
+				Precision v =  abs(A[ii][i]);
 				if (v > maxval) {
 					maxval = v;
 					argmax = ii;
@@ -130,7 +137,7 @@ namespace TooN {
 			b[i] *= inv_pivot;
 			
 			for (int u=i+1; u<size; ++u) {
-				double factor = A[u][i];
+				Precision factor = A[u][i];
 				//A[u][i] = 0;
 				for (int j=i+1; j<size; ++j)
 					A[u][j] -= factor * A[i][j];

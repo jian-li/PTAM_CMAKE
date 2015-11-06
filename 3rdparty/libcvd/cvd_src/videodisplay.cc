@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 //////////////////////////////////////////////////////////////////////
 //                                                                  //
 //   VideoDisplay - Cheap and cheeful way of creating a GL X        //
@@ -66,7 +46,7 @@ int CVD::defAttr[] = {GLX_RGBA,
 
 
 
-CVD::VideoDisplay::VideoDisplay(double left, double top, double right, double bottom, double scale, int* visualAttr) :
+CVD::VideoDisplay::VideoDisplay(double left, double top, double right, double bottom, double scale, int* visualAttr, bool map) :
    my_left(left),
    my_top(top),
    my_right(right),
@@ -78,7 +58,7 @@ CVD::VideoDisplay::VideoDisplay(double left, double top, double right, double bo
    my_orig_bottom(bottom),
    my_orig_scale(scale)
 {
-	init(my_left, my_top, my_right, my_bottom, scale, visualAttr);
+	init(my_left, my_top, my_right, my_bottom, scale, visualAttr, map);
 }
 
 
@@ -94,11 +74,28 @@ CVD::VideoDisplay::VideoDisplay(ImageRef s, double scale, int* visualAttr) :
    my_orig_bottom(s.y),
    my_orig_scale(scale)
 {
-	init(my_left, my_top, my_right, my_bottom, scale, visualAttr);
+	init(my_left, my_top, my_right, my_bottom, scale, visualAttr, true);
 }
 
 
-void CVD::VideoDisplay::init(double left, double top, double right, double bottom, double scale, int* visualAttr)
+CVD::VideoDisplay::VideoDisplay(ImageRef s, const DoNotMapStruct&, int* visualAttr) :
+   my_left(0),
+   my_top(0),
+   my_right(s.x),
+   my_bottom(s.y),
+   my_scale(1.0),
+   my_orig_left(0),
+   my_orig_top(0),
+   my_orig_right(s.x),
+   my_orig_bottom(s.y),
+   my_orig_scale(1.0)
+{
+	init(my_left, my_top, my_right, my_bottom, 1.0, visualAttr, false);
+}
+
+
+
+void CVD::VideoDisplay::init(double left, double top, double right, double bottom, double scale, int* visualAttr, bool map)
 {
    // Need these for converting mouse clicks efficiently
    // (This stays the same even when zooming)
@@ -158,16 +155,19 @@ void CVD::VideoDisplay::init(double left, double top, double right, double botto
 
   set_title("Video Display");
 
-  XMapWindow(my_display, my_window);
-
-
-  // discard all event up to the MapNotify
-  XEvent ev;
-  do
+  
+  if(map)
   {
-     XNextEvent(my_display,&ev);
+	  XMapWindow(my_display, my_window);
+
+	  // discard all event up to the MapNotify
+	  XEvent ev;
+	  do
+	  {
+		 XNextEvent(my_display,&ev);
+	  }
+	  while (ev.type != MapNotify);
   }
-  while (ev.type != MapNotify);
 
   // Connect the GLX context to the window
   if (!glXMakeCurrent(my_display, my_window, my_glx_context))
@@ -363,7 +363,7 @@ void CVD::VideoDisplay::swap_buffers()
 
 
 
-
+const VideoDisplay::DoNotMapStruct VideoDisplay::DoNotMap;
 
 
 

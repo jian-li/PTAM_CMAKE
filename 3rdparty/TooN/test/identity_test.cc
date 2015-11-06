@@ -21,11 +21,12 @@ int main()
 	Matrix<> q = 5.5 * Identity(6) * 2;
 
 	cout << q << endl;
-	cout << q - 3*Identity/4 << endl;
+	cout << q - 3.*Identity/4 << endl;
 
 	Matrix<3> p = Ones * 2;
 
 	cout <<  Identity - p << endl;
 
-
+	Matrix<3> g = -Identity * 2;
+	cout << g << endl;
 }

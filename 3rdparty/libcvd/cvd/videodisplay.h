@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 //-*- c++ -*-
 //////////////////////////////////////////////////////////////////////
 //                                                                  //
@@ -86,7 +66,15 @@ namespace CVD {
 	/// @ingroup gGL
 	class VideoDisplay
 	{
+		struct DoNotMapStruct
+		{
+			DoNotMapStruct(){}
+		};
+
 		public:
+			
+			static const DoNotMapStruct DoNotMap;
+
 			/// Construct (and display) a display window
 			/// @param left The local GL co-ordinate of the left of the window
 			/// @param top The local GL co-ordinate of the top of the window
@@ -94,9 +82,15 @@ namespace CVD {
 			/// @param bottom The local GL co-ordinate of bottom of the window
 			/// @param scale The number of image pixels per GL unit (default 1:1)
 			/// @param visualAttr The attributes passed to glXChooseVisual
-			VideoDisplay(double left, double top, double right, double bottom, double scale=1, int* visualAttr = defAttr);
+			/// @param map Whether or not to map the window
+			VideoDisplay(double left, double top, double right, double bottom, double scale=1, int* visualAttr = defAttr, bool map=true);
 
 
+			/// Construct (and display) a display window
+			/// @param size The GL co-ordinate window goes from (0,0) to (size.x, size.y)
+			/// @param map Whether or not to map the window
+			/// @param visualAttr The attributes passed to glXChooseVisual
+			VideoDisplay(ImageRef size, const DoNotMapStruct&,  int* visualAttr = defAttr);
 
 			/// Construct (and display) a display window
 			/// @param size The GL co-ordinate window goes from (0,0) to (size.x, size.y)
@@ -209,7 +203,7 @@ namespace CVD {
 			int operator = ( VideoDisplay& copyof );
 
 
-			void init(double, double, double, double, double, int* visualAttr);
+			void init(double, double, double, double, double, int* visualAttr, bool);
 	};
    
 } // CVD

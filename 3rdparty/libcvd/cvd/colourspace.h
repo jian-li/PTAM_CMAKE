@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 #ifndef CVD_COLOURSPACE_H
 #define CVD_COLOURSPACE_H
 
@@ -99,6 +79,118 @@ namespace CVD
 		/// @param width The width of the image
 		/// @param height The height of the image
 		void bayer_to_rgb_rggb(const unsigned char* rggb, unsigned char* rgb, unsigned int width, unsigned int height);
+
+		/// Convert 16bit Bayer pattern of the form bggr to greyscale data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_grey_bggr(const unsigned short* bggr, unsigned short* grey, unsigned int width, unsigned int height);
+
+		/// Convert 16bit Bayer pattern of the form gbrg to greyscale data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_grey_gbrg(const unsigned short* gbrg, unsigned short* grey, unsigned int width, unsigned int height);
+
+		/// Convert 16bit Bayer pattern of the form grbg to greyscale data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_grey_grbg(const unsigned short* grbg, unsigned short* grey, unsigned int width, unsigned int height);
+		
+		/// Convert 16bit Bayer pattern of the form rggb to greyscale data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_grey_rggb(const unsigned short* rggb, unsigned short* grey, unsigned int width, unsigned int height);
+		
+		/// Convert 16bit Bayer pattern of the form bggr to rgb444 data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_rgb_bggr(const unsigned short* bggr, unsigned short* rgb, unsigned int width, unsigned int height);
+
+		/// Convert 16bit Bayer pattern of the form gbrg to rgb444 data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_rgb_gbrg(const unsigned short* gbrg, unsigned short* rgb, unsigned int width, unsigned int height);
+
+		/// Convert 16bit Bayer pattern of the form grbg to rgb444 data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_rgb_grbg(const unsigned short* grbg, unsigned short* rgb, unsigned int width, unsigned int height);
+		
+		/// Convert 16bit Bayer pattern of the form rggb to rgb444 data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_rgb_rggb(const unsigned short* rggb, unsigned short* rgb, unsigned int width, unsigned int height);
+
+		/// Convert 16bit big endian Bayer pattern of the form bggr to host endian greyscale data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_grey_bggr_be(const unsigned short* bggr, unsigned short* grey, unsigned int width, unsigned int height);
+
+		/// Convert 16bit big endian Bayer pattern of the form gbrg to host endian greyscale data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_grey_gbrg_be(const unsigned short* gbrg, unsigned short* grey, unsigned int width, unsigned int height);
+
+		/// Convert 16bit big endian Bayer pattern of the form grbg to host endian greyscale data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_grey_grbg_be(const unsigned short* grbg, unsigned short* grey, unsigned int width, unsigned int height);
+		
+		/// Convert 16bit big endian Bayer pattern of the form rggb to host endian greyscale data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_grey_rggb_be(const unsigned short* rggb, unsigned short* grey, unsigned int width, unsigned int height);
+		
+		/// Convert 16bit big endian Bayer pattern of the form bggr to host endian rgb data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_rgb_bggr_be(const unsigned short* bggr, unsigned short* rgb, unsigned int width, unsigned int height);
+
+		/// Convert 16bit big endian Bayer pattern of the form gbrg to host endian rgb data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_rgb_gbrg_be(const unsigned short* gbrg, unsigned short* rgb, unsigned int width, unsigned int height);
+
+		/// Convert 16bit big endian Bayer pattern of the form grbg to host endian rgb data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_rgb_grbg_be(const unsigned short* grbg, unsigned short* rgb, unsigned int width, unsigned int height);
+		
+		/// Convert 16bit big endian Bayer pattern of the form rggb to host endian rgb data
+		/// @param bggr The input data
+		/// @param grey The output data
+		/// @param width The width of the image
+		/// @param height The height of the image
+		void bayer_to_rgb_rggb_be(const unsigned short* rggb, unsigned short* rgb, unsigned int width, unsigned int height);
 
 		/// Convert yuv422 to rgb444.
 		/// @param yuv The yuv422 data: yuyvyuyv....

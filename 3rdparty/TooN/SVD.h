@@ -1,31 +1,29 @@
 // -*- c++ -*-
 
 // Copyright (C) 2005,2009 Tom Drummond (twd20@cam.ac.uk)
+
+//All rights reserved.
 //
-// This file is part of the TooN Library.  This library is free
-// software; you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
-// any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
-// USA.
-
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions
+//are met:
+//1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND OTHER CONTRIBUTORS ``AS IS''
+//AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR OTHER CONTRIBUTORS BE
+//LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//POSSIBILITY OF SUCH DAMAGE.
 
 #ifndef __SVD_H
 #define __SVD_H
@@ -86,11 +84,12 @@ SVD<> (= SVD<-1>) can be used to create an SVD whose size is determined at run-t
 **/
 template<int Rows=Dynamic, int Cols=Rows, typename Precision=DefaultPrecision>
 class SVD {
-public:
 	// this is the size of the diagonal
 	// NB works for semi-dynamic sizes because -1 < +ve ints
 	static const int Min_Dim = Rows<Cols?Rows:Cols;
 	
+public:
+
 	/// default constructor for Rows>0 and Cols>0
 	SVD() {}
 
@@ -118,7 +117,8 @@ public:
 		my_copy=m;
 		do_compute();
 	}
-		
+	
+	private:
 	void do_compute(){
 		Precision* const a = my_copy.my_data;
 		int lda = my_copy.num_cols();
@@ -150,24 +150,25 @@ public:
 
 		// arguments are scrambled because we use rowmajor and lapack uses colmajor
 		// thus u and vt play each other's roles.
-		dgesvd_( &JOBVT, &JOBU, &m, &n, a, &lda, s, uorvt,
+		gesvd_( &JOBVT, &JOBU, &m, &n, a, &lda, s, uorvt,
 				 &ldvt, uorvt, &ldu, &size, &LWORK, &INFO);
 	
 		LWORK = (long int)(size);
 		wk = new Precision[LWORK];
 
-		dgesvd_( &JOBVT, &JOBU, &m, &n, a, &lda, s, uorvt,
+		gesvd_( &JOBVT, &JOBU, &m, &n, a, &lda, s, uorvt,
 				 &ldvt, uorvt, &ldu, wk, &LWORK, &INFO);
 	
 		delete[] wk;
 	}
-
+	
 	bool is_vertical(){ 
 		return (my_copy.num_rows() >= my_copy.num_cols()); 
 	}
 
 	int min_dim(){ return std::min(my_copy.num_rows(), my_copy.num_cols()); }
-
+	
+	public:
 
 	/// Calculate result of multiplying the (pseudo-)inverse of M by another matrix. 
 	/// For a matrix \f$A\f$, this calculates \f$M^{\dagger}A\f$ by back substitution 
@@ -257,7 +258,11 @@ public:
 		}
 	}
 
-
+	///Return the pesudo-inverse diagonal. The reciprocal of the diagonal elements
+	///is returned if the elements are well scaled with respect to the largest element,
+	///otherwise 0 is returned.
+	///@param inv_diag Vector in which to return the inverse diagonal.
+	///@param condition Elements must be larger than this factor times the largest diagonal element to be considered well scaled. 
 	void get_inv_diag(Vector<Min_Dim>& inv_diag, const Precision condition){
 		for(int i=0; i<min_dim(); i++){
 			if(my_diagonal[i] * condition <= my_diagonal[0]){
@@ -284,12 +289,15 @@ private:
 /// @ingroup gDecomps
 template<int Size, typename Precision>
 struct SQSVD : public SVD<Size, Size, Precision> {
-	// forward all constructors to SVD
+	///All constructors are forwarded to SVD in a straightforward manner.
+	///@name Constructors
+	///@{
 	SQSVD() {}
 	SQSVD(int size) : SVD<Size,Size,Precision>(size, size) {}
 	
 	template <int R2, int C2, typename P2, typename B2>
 	SQSVD(const Matrix<R2,C2,P2,B2>& m) : SVD<Size,Size,Precision>(m) {}
+	///@}
 };
 
 

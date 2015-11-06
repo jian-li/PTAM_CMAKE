@@ -1,32 +1,12 @@
-/*
-        This file is part of the CVD Library.
-
-        Copyright (C) 2005 The Authors
-
-        This library is free software; you can redistribute it and/or
-        modify it under the terms of the GNU Lesser General Public
-        License as published by the Free Software Foundation; either
-        version 2.1 of the License, or (at your option) any later version.
-
-        This library is distributed in the hope that it will be useful,
-        but WITHOUT ANY WARRANTY; without even the implied warranty of
-        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-        Lesser General Public License for more details.
-
-        You should have received a copy of the GNU Lesser General Public
-        License along with this library; if not, write to the Free Software
-        Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 
 #ifndef CVD_VISION_H_
 #define CVD_VISION_H_
 
-#include <stdint.h>
 #include <vector>
 #include <memory>
+#include <algorithm>
 
-#include <cvd/exceptions.h>
+#include <cvd/vision_exceptions.h>
 #include <cvd/image.h>
 #include <cvd/internal/pixel_operations.h>
 #include <cvd/utility.h>
@@ -37,36 +17,77 @@
 #include <TooN/helpers.h>
 #endif
 
-namespace CVD {
+namespace CVD{
+/** Subsamples an image to 2/3 of its size by averaging 3x3 blocks into 2x2 blocks.
+@param in input image
+@param out output image (must be <code>out.size() == in.size()/3*2 </code>)
+@throw IncompatibleImageSizes if out does not have the correct dimensions.
+@ingroup gVision
+*/
+template<class C> void twoThirdsSample(const SubImage<C>& in, SubImage<C>& out)
+{
+    typedef typename Pixel::traits<C>::wider_type sum_type;
+	if( (in.size()/3*2) != out.size())
+        throw Exceptions::Vision::IncompatibleImageSizes(__FUNCTION__);
+	
+	for(int yy=0, y=0; y < in.size().y-2; y+=3, yy+=2)
+		for(int xx=0, x=0; x < in.size().x-2; x+=3, xx+=2)
+		{
+			// a b c
+			// d e f
+			// g h i
 
-namespace Exceptions {
+			sum_type b = in[y][x+1]*2;
+			sum_type d = in[y+1][x]*2;
+			sum_type f = in[y+1][x+2]*2;
+			sum_type h = in[y+2][x+1]*2;
+			sum_type e = in[y+1][x+1];
 
-    /// %Exceptions specific to vision algorithms
-    /// @ingroup gException
-    namespace Vision {
-        /// Base class for all Image_IO exceptions
-        /// @ingroup gException
-        struct All: public CVD::Exceptions::All {};
+			out[yy][xx]     = static_cast<C>((in[  y][  x]*4+b+d+e)/9);
+			out[yy][xx+1]   = static_cast<C>((in[  y][x+2]*4+b+f+e)/9);
+			out[yy+1][xx]   = static_cast<C>((in[y+2][  x]*4+h+d+e)/9);
+			out[yy+1][xx+1] = static_cast<C>((in[y+2][x+2]*4+h+f+e)/9);
+		}
+}
 
-        /// Input images have incompatible dimensions
-        /// @ingroup gException
-        struct IncompatibleImageSizes : public All {
-            IncompatibleImageSizes(const std::string & function)
-            {
-                what = "Incompatible image sizes in " + function;
-            };
-        };
+/**
+@overload
+*/
+void twoThirdsSample(const SubImage<byte>& in, SubImage<byte>& out);
 
-        /// Input ImageRef not within image dimensions
-        /// @ingroup gException
-        struct ImageRefNotInImage : public All {
-            ImageRefNotInImage(const std::string & function)
-            {
-                what = "Input ImageRefs not in image in " + function;
-            };
-        };
-    };
-};
+  #ifndef DOXYGEN_IGNORE_INTERNAL
+  namespace Internal
+  {
+  	template<class C> class twoThirdsSampler{};
+	template<class C>  struct ImagePromise<twoThirdsSampler<C> >
+	{
+		ImagePromise(const SubImage<C>& im)
+		:i(im)
+		{}
+
+		const SubImage<C>& i;
+		template<class D> void execute(Image<D>& j)
+		{
+			j.resize(i.size()/3*2);
+			twoThirdsSample(i, j);
+		}
+	};
+  };
+  template<class C> Internal::ImagePromise<Internal::twoThirdsSampler<C> > twoThirdsSample(const SubImage<C>& c)
+  {
+    return Internal::ImagePromise<Internal::twoThirdsSampler<C> >(c);
+  }
+  #else
+  	///Subsamples an image by averaging 3x3 blocks in to 2x2 ones.
+	/// Note that this is performed using lazy evaluation, so subsampling
+	/// happens on assignment, and memory allocation is not performed if
+	/// unnecessary.
+    /// @param from The image to convert from
+	/// @return The converted image
+    /// @ingroup gVision
+  	template<class C> Image<C> twoThirdsSample(const SubImage<C>& from);
+
+  #endif
 
 /// subsamples an image to half its size by averaging 2x2 pixel blocks
 /// @param in input image
@@ -187,7 +208,7 @@ struct multiplyBy
   multiplyBy(const T& f) : factor(f) {};
   template <class S> inline S operator()(const S& s) const {
     return s * factor;
-  };
+  }
 };
 
 template <class S, class T, int Sn=Pixel::Component<S>::count, int Tn=Pixel::Component<T>::count> struct Gradient;
@@ -225,16 +246,16 @@ template <class S, class T> void gradient(const BasicImage<S>& im, BasicImage<T>
 
 
 #ifndef DOXYGEN_IGNORE_INTERNAL
-inline void gradient(const BasicImage<byte>& im, BasicImage<short[2]>& out);
+void gradient(const BasicImage<byte>& im, BasicImage<short[2]>& out);
 #endif
 
 
-template <class T, class S> inline void sample(const BasicImage<S>& im, double x, double y, T& result)
+template <class T, class S, typename Precision> inline void sample(const SubImage<S>& im, Precision x, Precision y, T& result)
 {
   typedef typename Pixel::Component<S>::type SComp;
   typedef typename Pixel::Component<T>::type TComp;
-  int lx = (int)x;
-  int ly = (int)y;
+  const int lx = (int)x;
+  const int ly = (int)y;
   x -= lx;
   y -= ly;
   for(unsigned int i = 0; i < Pixel::Component<T>::count; i++){
@@ -244,27 +265,27 @@ template <class T, class S> inline void sample(const BasicImage<S>& im, double x
   }
  }
 
-template <class T, class S> inline T sample(const BasicImage<S>& im, double x, double y){
+template <class T, class S, typename Precision> inline T sample(const SubImage<S>& im, Precision x, Precision y){
     T result;
     sample( im, x, y, result);
     return result;
 }
 
-inline void sample(const BasicImage<float>& im, double x, double y, float& result)
-  {
-    int lx = (int)x;
-    int ly = (int)y;
-    int w = im.size().x;
+inline void sample(const SubImage<float>& im, double x, double y, float& result)
+{
+    const int lx = (int)x;
+    const int ly = (int)y;
+    const int w = im.row_stride();
     const float* base = im[ly]+lx;
-    float a = base[0];
-    float b = base[1];
-    float c = base[w];
-    float d = base[w+1];
-    float e = a-b;
+    const float a = base[0];
+    const float b = base[1];
+    const float c = base[w];
+    const float d = base[w+1];
+    const float e = a-b;
     x-=lx;
     y-=ly;
     result = (float)(x*(y*(e-c+d)-e)+y*(c-a)+a);
-  }
+}
 
 #if defined (CVD_HAVE_TOON)
 
@@ -278,24 +299,24 @@ inline void sample(const BasicImage<float>& im, double x, double y, float& resul
  * @return the number of pixels not in the in image 
  * @Note: this will collide with transform in the std namespace
  */
-template <class T, class S>
-int transform(const BasicImage<S>& in, BasicImage<T>& out, const TooN::Matrix<2>& M, const TooN::Vector<2>& inOrig, const TooN::Vector<2>& outOrig, const T defaultValue = T())
+template <typename T, typename S, typename P>
+int transform(const SubImage<S>& in, SubImage<T>& out, const TooN::Matrix<2, 2, P>& M, const TooN::Vector<2, P>& inOrig, const TooN::Vector<2, P>& outOrig, const T defaultValue = T())
 {
     const int w = out.size().x, h = out.size().y, iw = in.size().x, ih = in.size().y; 
-    const TooN::Vector<2> across = M.T()[0];
-    const TooN::Vector<2> down =   M.T()[1];
+    const TooN::Vector<2, P> across = M.T()[0];
+    const TooN::Vector<2, P> down =   M.T()[1];
    
-    const TooN::Vector<2> p0 = inOrig - M*outOrig;
-    const TooN::Vector<2> p1 = p0 + w*across;
-    const TooN::Vector<2> p2 = p0 + h*down;
-    const TooN::Vector<2> p3 = p0 + w*across + h*down;
+    const TooN::Vector<2, P> p0 = inOrig - M*outOrig;
+    const TooN::Vector<2, P> p1 = p0 + w*across;
+    const TooN::Vector<2, P> p2 = p0 + h*down;
+    const TooN::Vector<2, P> p3 = p0 + w*across + h*down;
         
     // ul --> p0
     // ur --> w*across + p0
     // ll --> h*down + p0
     // lr --> w*across + h*down + p0
-    double min_x = p0[0], min_y = p0[1];
-    double max_x = min_x, max_y = min_y;
+    P min_x = p0[0], min_y = p0[1];
+    P max_x = min_x, max_y = min_y;
    
     // Minimal comparisons needed to determine bounds
     if (across[0] < 0)
@@ -316,13 +337,13 @@ int transform(const BasicImage<S>& in, BasicImage<T>& out, const TooN::Matrix<2>
 	max_y += h*down[1];
    
     // This gets from the end of one row to the beginning of the next
-    const TooN::Vector<2> carriage_return = down - w*across;
+    const TooN::Vector<2, P> carriage_return = down - w*across;
 
     //If the patch being extracted is completely in the image then no 
     //check is needed with each point.
     if (min_x >= 0 && min_y >= 0 && max_x < iw-1 && max_y < ih-1) 
     {
-	TooN::Vector<2> p = p0;
+	TooN::Vector<2, P> p = p0;
 	for (int i=0; i<h; ++i, p+=carriage_return)
 	    for (int j=0; j<w; ++j, p+=across) 
 		sample(in,p[0],p[1],out[i][j]);
@@ -331,10 +352,10 @@ int transform(const BasicImage<S>& in, BasicImage<T>& out, const TooN::Matrix<2>
     else // Check each source location
     {
 	// Store as doubles to avoid conversion cost for comparison
-	const double x_bound = iw-1;
-	const double y_bound = ih-1;
+	const P x_bound = iw-1;
+	const P y_bound = ih-1;
 	int count = 0;
-	TooN::Vector<2> p = p0;
+	TooN::Vector<2, P> p = p0;
 	for (int i=0; i<h; ++i, p+=carriage_return) {
 	    for (int j=0; j<w; ++j, p+=across) {
 		//Make sure that we are extracting pixels in the image
@@ -375,14 +396,49 @@ int transform(const BasicImage<S>& in, BasicImage<T>& out, const TooN::Matrix<2>
       }
     }
   }
+  
+/// warp or unwarps an image according to two camera models.
+template <typename T, typename CAM1, typename CAM2>
+void warp( const SubImage<T> & in, const CAM1 & cam_in, SubImage<T> & out, const CAM2 & cam_out){
+	const ImageRef size = out.size();
+	for(int y = 0; y < size.y; ++y){
+		for(int x = 0; x < size.x; ++x){
+			TooN::Vector<2> l = cam_in.project(cam_out.unproject(TooN::makeVector(x,y)));
+			if(l[0] >= 0 && l[0] <= in.size().x - 1 && l[1] >= 0 && l[1] <= in.size().y -1){
+				sample(in, l[0], l[1], out[y][x]);
+			} else 
+				out[y][x] = T();
+		}
+	}
+}
+
+/// warps or unwarps an image according to two camera models and
+/// returns the result image. The size of the output image needs to be
+/// passed in as well.
+template <typename T, typename CAM1, typename CAM2>
+Image<T> warp( const SubImage<T> & in, const CAM1 & cam_in, const ImageRef & size, const CAM2 & cam_out){
+	Image<T> result(size);
+	warp(in, cam_in, result, cam_out);
+	return result;
+}
+
+/// warps or unwarps an image according to two camera models and
+/// returns the result image. The size of the output image is the
+/// same as the input image size.
+template <typename T, typename CAM1, typename CAM2>
+Image<T> warp( const SubImage<T> & in, const CAM1 & cam_in, const CAM2 & cam_out){
+	Image<T> result(in.size());
+	warp(in, cam_in, result, cam_out);
+	return result;
+}
+
 #endif
 
 /// flips an image vertically in place.
 template <class T> void flipVertical( Image<T> & in )
 {
   int w = in.size().x;
-  std::auto_ptr<T> buffer_auto(new T[w]);
-  T* buffer = buffer_auto.get();
+  T * buffer = new T[w];
   T * top = in.data();
   T * bottom = top + (in.size().y - 1)*w;
   while( top < bottom )
@@ -393,6 +449,27 @@ template <class T> void flipVertical( Image<T> & in )
     top += w;
     bottom -= w;
   }
+  delete[] buffer;
+}
+
+/// flips an image horizontally in place.
+template <class T> void flipHorizontal( Image<T> & in )
+{
+  int w = in.size().x;
+  int h = in.size().y;
+  T * buffer = new T[w];
+  T * left = in.data();
+  T * right = left + w;
+  int row = 0;
+  while(row < h)
+  {
+    std::copy(left, right, buffer);
+    std::reverse_copy(buffer, buffer+w-1, left);
+    row++;
+    left += w;
+    right += w;
+  }
+  delete[] buffer;
 }
 
 

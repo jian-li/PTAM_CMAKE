@@ -1,28 +1,8 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 /**************************************************************************
 **       Title: grab one gray image using libdc1394
 **    $RCSfile: dvbuffer.cc,v $
-**   $Revision: 1.15 $$Name:  $
-**       $Date: 2008/11/25 12:08:57 $
+**   $Revision: 1.16 $$Name:  $
+**       $Date: 2009/06/04 17:10:20 $
 **   Copyright: LGPL $Author: edrosten $
 ** Description:
 **
@@ -32,6 +12,9 @@
 **-------------------------------------------------------------------------
 **
 **  $Log: dvbuffer.cc,v $
+**  Revision 1.16  2009/06/04 17:10:20  edrosten
+**  Fix some warnings.
+**
 **  Revision 1.15  2008/11/25 12:08:57  edrosten
 **  Fixed mad return.
 **
@@ -108,11 +91,6 @@
 
 
 #include "cvd_src/Linux/kernel-video1394.h"
-
-
-#ifdef UNKNOWN_KERNEL
-	#error I dont know how to compile DC stuff for this kernel version!
-#endif
 
 #include <sys/ioctl.h>
 #include <iostream>
@@ -444,7 +422,7 @@ static int _dc1394_quadlets_from_format(int format, int mode)
  This releases memory that was mapped by
  dc1394_dma_setup_camera
 *****************************************************/
-void tom_dc1394_dma_release_camera(raw1394handle_t handle, const unsigned char* ring_buffer, int buffer_size, int dma_fd){
+void tom_dc1394_dma_release_camera(raw1394handle_t, const unsigned char* ring_buffer, int buffer_size, int dma_fd){
   if (ring_buffer){
     munmap((void*)ring_buffer,buffer_size);
   }

@@ -1,25 +1,17 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 // Paul Smith 1 March 2005
 // Uses ffmpeg libraries to play most types of video file
+
+
+#ifndef __STDC_CONSTANT_MACROS
+#define __STDC_CONSTANT_MACROS
+#endif
+
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+}
+
 
 #include <string>
 #include <sstream>
@@ -33,46 +25,98 @@ namespace CVD
 {
 
 using namespace Exceptions::VideoFileBuffer;
-	
-//
-// EXCEPTIONS
-//
-
-Exceptions::VideoFileBuffer::FileOpen::FileOpen(const std::string& name, const string& error)
-{
-	what = "RawVideoFileBuffer: Error opening file \"" + name + "\": " + error;
-}
-
-Exceptions::VideoFileBuffer::BadFrameAlloc::BadFrameAlloc()
-{
-	what = "RawVideoFileBuffer: Unable to allocate video frame.";
-}
-
-Exceptions::VideoFileBuffer::BadDecode::BadDecode(double t)
-{
-	ostringstream os;
-	os << "RawVideoFileBuffer: Error decoding video frame at time " << t << ".";
-	what = os.str();
-}
-
-Exceptions::VideoFileBuffer::EndOfFile::EndOfFile()
-{
-	what =  "RawVideoFileBuffer: Tried to read off the end of the file.";
-}
-
-Exceptions::VideoFileBuffer::BadSeek::BadSeek(double t)
-{
-	ostringstream ss;
-	ss << "RawVideoFileBuffer: Seek to time " << t << "s failed.";
-	what = ss.str();
-}
 
 namespace VFB
 {
+
+
+	/// Internal (non type-safe) class used by VideoFileBuffer
+	/// This does the real interfacing with the ffmpeg library
+	class RawVideoFileBufferPIMPL 
+	{
+		public:
+			/// Construct a video buffer to play this file
+			/// @param file The path to the video file
+			/// @param is_rgb Is RGB data wanted?
+			RawVideoFileBufferPIMPL(const std::string& file, bool is_rgb);
+			~RawVideoFileBufferPIMPL();
+		
+			/// The size of the VideoFrames returned by this buffer
+ 			ImageRef size()
+			{
+				return my_size;
+			}
+
+			/// Returns the next frame from the buffer. This function blocks until a frame is ready.
+			void* get_frame();
+			/// Tell the buffer that you are finished with this frame.
+			/// \param f The frame that you are finished with.
+			void put_frame(void* f);
+
+			/// Is there a frame waiting in the buffer? This function does not block. 
+			bool frame_pending()
+			{
+				return frame_ready;
+			}
+
+			/// Go to a particular point in the video buffer (only implemented in buffers of recorded video)
+			/// \param t The frame time in seconds
+			void seek_to(double t);
+			
+			/// What should the buffer do when it reaches the end of the list of files?
+			/// @param behaviour The desired behaviour
+			void on_end_of_buffer(VideoBufferFlags::OnEndOfBuffer behaviour) 
+			{
+				end_of_buffer_behaviour = behaviour;
+			}
+		
+			/// What is the (expected) frame rate of this video buffer, in frames per second?		
+			double frames_per_second() 
+			{
+				  return pCodecContext->time_base.den / static_cast<double>(pCodecContext->time_base.num);
+			};
+			
+			/// What is the path to the video file?
+			std::string file_name() 
+			{
+				return pFormatContext->filename;
+			}
+			
+			/// What codec is being used to decode this video?
+			std::string codec_name() 
+			{
+				return pCodecContext->codec_name;
+			}
+		
+		private:
+			bool read_next_frame();
+				
+		private:
+			ImageRef my_size;
+			VideoBufferFlags::OnEndOfBuffer end_of_buffer_behaviour;
+			double start_time;
+			bool frame_ready;
+
+			AVFormatContext* pFormatContext;
+			int video_stream;
+			AVCodecContext* pCodecContext;
+		    AVFrame* pFrame; 
+    		AVFrame* pFrameRGB;
+			SwsContext *img_convert_ctx;
+			
+			CVD::Image<CVD::Rgb<byte> > next_frame_rgb;
+			CVD::Image<CVD::byte> next_frame;
+			
+			double frame_time;
+			bool is_rgb;
+	};
+
+
+
 //
 // CONSTRUCTOR
 //
-RawVideoFileBuffer::RawVideoFileBuffer(const std::string& file, bool rgbp) :
+RawVideoFileBufferPIMPL::RawVideoFileBufferPIMPL(const std::string& file, bool rgbp) :
 	end_of_buffer_behaviour(VideoBufferFlags::RepeatLastFrame),
 	pFormatContext(0),
 	pCodecContext(0),
@@ -87,6 +131,7 @@ RawVideoFileBuffer::RawVideoFileBuffer(const std::string& file, bool rgbp) :
 	{
 		// Register the formats and codecs
 		av_register_all();
+		avcodec_register_all();
 	
 		// Now open the video file (and read the header, if present)
 		if(av_open_input_file(&pFormatContext, file.c_str(), NULL, 0, NULL) != 0)
@@ -101,25 +146,17 @@ RawVideoFileBuffer::RawVideoFileBuffer(const std::string& file, bool rgbp) :
 		
 		// We shall just use the first video stream
 		video_stream = -1;
-		for(int i=0; i < pFormatContext->nb_streams && video_stream == -1; i++)
+		for(unsigned int i=0; i < pFormatContext->nb_streams && video_stream == -1; i++)
 		{
-		    #if LIBAVFORMAT_BUILD >= 4629
-			if(pFormatContext->streams[i]->codec->codec_type == CODEC_TYPE_VIDEO)
+			
+			if(pFormatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
 				video_stream = i; // Found one!
-		    #else
-			if(pFormatContext->streams[i]->codec.codec_type == CODEC_TYPE_VIDEO)
-				video_stream = i; // Found one!
-			#endif
 		}
 		if(video_stream == -1)
 			throw FileOpen(file, "No video stream found.");
 		
 		// Get the codec context for this video stream
-		#if LIBAVFORMAT_BUILD >= 4629
 		pCodecContext = pFormatContext->streams[video_stream]->codec;
-		#else
-		pCodecContext = &pFormatContext->streams[video_stream]->codec;
-		#endif
 		
 		// Find the decoder for the video stream
 		AVCodec* pCodec = avcodec_find_decoder(pCodecContext->codec_id);
@@ -135,13 +172,6 @@ RawVideoFileBuffer::RawVideoFileBuffer(const std::string& file, bool rgbp) :
 			pCodecContext = 0; // Since it's not been opened yet
 			throw FileOpen(file, string(pCodec->name) + " codec could not be initialised.");
 		}
-		
-		#if LIBAVCODEC_BUILD < 4754
-		// Hack to fix wrong frame rates
-		if(pCodecContext->frame_rate > 1000 && pCodecContext->frame_rate_base == 1)
-			pCodecContext->frame_rate_base = 1000;
-		#endif
-		
 		
 		// Allocate video frame
 		pFrame = avcodec_alloc_frame();
@@ -196,7 +226,7 @@ RawVideoFileBuffer::RawVideoFileBuffer(const std::string& file, bool rgbp) :
 //
 // DESTRUCTOR
 //
-RawVideoFileBuffer::~RawVideoFileBuffer()
+RawVideoFileBufferPIMPL::~RawVideoFileBufferPIMPL()
 {
     //delete [] buffer;
     av_free(pFrameRGB);
@@ -209,7 +239,7 @@ RawVideoFileBuffer::~RawVideoFileBuffer()
 //
 // READ NEXT FRAME
 //
-bool RawVideoFileBuffer::read_next_frame()
+bool RawVideoFileBufferPIMPL::read_next_frame()
 {
 	uint8_t* data;
 
@@ -231,6 +261,7 @@ bool RawVideoFileBuffer::read_next_frame()
 
 
     AVPacket packet;
+	av_init_packet(&packet);
 	packet.stream_index = -1;
 	
 	// How many frames do we read looking for our video stream?
@@ -257,8 +288,11 @@ bool RawVideoFileBuffer::read_next_frame()
 			
 			// Decode video frame
 			int got_picture;
-			if(avcodec_decode_video(pCodecContext, pFrame, &got_picture, 
-				packet.data, packet.size) == -1)
+			#ifdef CVD_INTERNAL_FFMPEG_USE_AVCODEC_DECODE_VIDEO2
+			if(avcodec_decode_video2(pCodecContext, pFrame, &got_picture, & packet) == -1)
+			#else
+			if(avcodec_decode_video(pCodecContext, pFrame, &got_picture, packet.data, packet.size) == -1)
+			#endif
 			{
 				throw BadDecode(frame_time);
 			}
@@ -301,7 +335,7 @@ bool RawVideoFileBuffer::read_next_frame()
 //
 // GET FRAME
 //
-void* RawVideoFileBuffer::get_frame()
+void* RawVideoFileBufferPIMPL::get_frame()
 {
 
 	if(!frame_pending())
@@ -365,7 +399,7 @@ template<class C> void delete_frame_or_throw(void* f)
 //
 // PUT FRAME
 //
-void RawVideoFileBuffer::put_frame(void* f)
+void RawVideoFileBufferPIMPL::put_frame(void* f)
 {
 	if(is_rgb)
 		delete_frame_or_throw<Rgb<byte> >(f);
@@ -376,7 +410,7 @@ void RawVideoFileBuffer::put_frame(void* f)
 //
 // SEEK TO
 //
-void RawVideoFileBuffer::seek_to(double t)
+void RawVideoFileBufferPIMPL::seek_to(double t)
 {	
 	// The call to av_seek_frame only searches to the keyframe immediately prior to the desired frame.
 	// To continue from there, we must decode one frame at a time until we reach the required frame.
@@ -396,13 +430,9 @@ void RawVideoFileBuffer::seek_to(double t)
 	// If t was initially zero, it is now negative. Fix this.
 	int64_t seekToPts = targetPts < 0 ? 0 : targetPts;
 
-	#if LIBAVFORMAT_BUILD >= 4623
 	// The flag AVSEEK_FLAG_ANY will seek to the specified frame, but we cannot decode from there because
 	// we do not have the info from the previous frames and keyframe, hence the BACKWARD flag.
 	if (av_seek_frame(pFormatContext, -1, seekToPts, AVSEEK_FLAG_BACKWARD) < 0)
-	#else
-	if (av_seek_frame(pFormatContext, -1, seekToPts < 0)
-	#endif
 	{
 		cerr << "av_seek_frame not supported by this codec: performing (slow) manual seek" << endl;
 		
@@ -423,11 +453,7 @@ void RawVideoFileBuffer::seek_to(double t)
 		// No need to find the stream--we know which one it is (in video_stream)
 		
 		// Get the codec context for this video stream
-		#if LIBAVFORMAT_BUILD >= 4629
 		pCodecContext = pFormatContext->streams[video_stream]->codec;
-		#else
-		pCodecContext = &pFormatContext->streams[video_stream]->codec;
-		#endif
 		
 		// Find the decoder for the video stream
 		AVCodec* pCodec = avcodec_find_decoder(pCodecContext->codec_id);
@@ -459,8 +485,9 @@ void RawVideoFileBuffer::seek_to(double t)
 	// Now read frames until we get to the time we want
 
 	AVPacket packet;
+	av_init_packet(&packet);
 	int gotFrame;
-	int64_t pts;	      
+	int64_t pts=0;	      
 	      
 	// Decode frame by frame until we reach the desired point.
 	do {
@@ -473,13 +500,65 @@ void RawVideoFileBuffer::seek_to(double t)
 		// Timestamp of the decoded frame.
 		pts = static_cast<int64_t>(packet.pts / packet.duration * AV_TIME_BASE / frame_rate + 0.5);
 
-		avcodec_decode_video(pCodecContext, pFrame, &gotFrame, packet.data, packet.size);
-		av_free_packet(&packet);
+		#ifdef CVD_INTERNAL_FFMPEG_USE_AVCODEC_DECODE_VIDEO2
+			avcodec_decode_video2(pCodecContext, pFrame, &gotFrame, &packet);
+		#else
+			avcodec_decode_video(pCodecContext, pFrame, &gotFrame, packet.data, packet.size);
+		#endif
+		av_free_packet(&packet); 
 	} while (pts < targetPts);
 
 	// This read_frame is necessary to ensure that the first frame read by the calling program
 	// is actually the seeked-to frame.
 	read_next_frame();
+}
+
+///Public implementation of RawVideoFileBuffer
+RawVideoFileBuffer::RawVideoFileBuffer(const std::string& file, bool is_rgb, bool)
+:p(new RawVideoFileBufferPIMPL(file, is_rgb))
+{}
+
+RawVideoFileBuffer::~RawVideoFileBuffer()
+{}
+
+ImageRef RawVideoFileBuffer::size()
+{
+	return p->size();
+}
+
+bool RawVideoFileBuffer::frame_pending()
+{
+	return p->frame_pending();
+}
+
+void* RawVideoFileBuffer::get_frame()
+{
+	return p->get_frame();
+}
+
+void RawVideoFileBuffer::put_frame(void* f)
+{
+	p->put_frame(f);
+}
+
+void RawVideoFileBuffer::seek_to(double t)
+{
+	p->seek_to(t);
+}
+
+void RawVideoFileBuffer::on_end_of_buffer(VideoBufferFlags::OnEndOfBuffer b)
+{
+	p->on_end_of_buffer(b);
+}
+
+double RawVideoFileBuffer::frames_per_second()
+{
+	return p->frames_per_second();
+}
+
+string RawVideoFileBuffer::codec_name()
+{
+	return p->codec_name();
 }
 
 

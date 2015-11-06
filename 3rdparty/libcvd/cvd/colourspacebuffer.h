@@ -1,27 +1,7 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 // PAS 17/6/04 (revised 16/2/05)
 
-#ifndef __CVD_DEINTERLACEBUFFER_H
-#define __CVD_DEINTERLACEBUFFER_H
+#ifndef CVD_INCLUDE_COLOURSPACEBUFFER_H
+#define CVD_INCLUDE_COLOURSPACEBUFFER_H
 
 #include <cvd/localvideobuffer.h>
 #include <cvd/image_convert.h>
@@ -58,6 +38,11 @@ template <class T, class From> class ColourspaceBuffer : public CVD::LocalVideoB
 		:LocalVideoBuffer<T>(buf.type()),m_vidbuf(buf),m_size(buf.size())
 		{
 		}
+		
+		virtual RawVideoBuffer* source_buffer()
+		{
+			return &m_vidbuf;
+		}
  
 		/// The size of the VideoFrames returns by this buffer.
 		ImageRef size()
@@ -72,7 +57,7 @@ template <class T, class From> class ColourspaceBuffer : public CVD::LocalVideoB
 			
 		virtual void seek_to(double t)
 		{
-			return m_vidbuf.seek_to(t);
+			m_vidbuf.seek_to(t);
 		}
 			
 		virtual double frame_rate()

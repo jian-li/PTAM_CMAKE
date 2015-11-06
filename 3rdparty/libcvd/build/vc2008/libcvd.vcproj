@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="9.00"
 	Name="libcvd"
 	ProjectGUID="{DB1962D5-5EBB-499D-9F84-4FCF6435063C}"
 	RootNamespace="libcvd"
 	Keyword="Win32Proj"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -21,6 +22,7 @@
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="4"
 			CharacterSet="0"
+			WholeProgramOptimization="0"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -40,14 +42,15 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..;..\..\..;..\..\..\Pre-built.2\include;..\..\..\jpeg-6b"
+				WholeProgramOptimization="false"
+				AdditionalIncludeDirectories="..\..;&quot;$(INCLUDEDIR)&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_LIB"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
-				RuntimeLibrary="1"
+				RuntimeLibrary="3"
+				EnableEnhancedInstructionSet="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="4"
 				DisableSpecificWarnings="4244"
 			/>
@@ -62,7 +65,9 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
+				AdditionalDependencies="pthreadVCE2.lib jpeg.lib Ws2_32.lib"
 				OutputFile="..\..\lib\$(ProjectName)d.lib"
+				AdditionalLibraryDirectories="&quot;$(LIBDIR)&quot;"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -86,7 +91,7 @@
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="4"
 			CharacterSet="0"
-			WholeProgramOptimization="1"
+			WholeProgramOptimization="0"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -107,12 +112,13 @@
 				Name="VCCLCompilerTool"
 				InlineFunctionExpansion="2"
 				FavorSizeOrSpeed="1"
-				AdditionalIncludeDirectories="..\..;..\..\..;..\..\..\Pre-built.2\include;..\..\..\jpeg-6b"
+				WholeProgramOptimization="false"
+				AdditionalIncludeDirectories="..\..;&quot;$(INCLUDEDIR)&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_LIB"
-				RuntimeLibrary="0"
+				RuntimeLibrary="2"
+				EnableEnhancedInstructionSet="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="3"
 				DisableSpecificWarnings="4244"
 			/>
@@ -127,7 +133,9 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
+				AdditionalDependencies="pthreadVCE2.lib jpeg.lib Ws2_32.lib"
 				OutputFile="..\..\lib\$(ProjectName).lib"
+				AdditionalLibraryDirectories="&quot;$(LIBDIR)&quot;"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -239,10 +247,6 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\cvd_src\half_sample.cc"
-				>
-			</File>
-			<File
 				RelativePath="..\..\cvd_src\image_io.cc"
 				>
 			</File>
@@ -284,6 +288,14 @@
 			</File>
 			<File
 				RelativePath="..\..\cvd_src\videosource.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\cvd_src\videosource_nodvbuffer.cc"
+				>
+			</File>
+			<File
+				RelativePath="..\..\cvd_src\videosource_novideofilebuffer.cc"
 				>
 			</File>
 			<File
@@ -408,28 +420,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\..\cvd_src\noarch\gradient.cc"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							ObjectFile="$(IntDir)\$(InputName)1.obj"
-							XMLDocumentationFileName="$(IntDir)\$(InputName)1.xdc"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							ObjectFile="$(IntDir)\$(InputName)1.obj"
-							XMLDocumentationFileName="$(IntDir)\$(InputName)1.xdc"
-						/>
-					</FileConfiguration>
-				</File>
-				<File
 					RelativePath="..\..\cvd_src\noarch\median_3x3.cc"
 					>
 					<FileConfiguration
@@ -482,6 +472,26 @@
 					>
 				</File>
 				<File
+					RelativePath="..\..\pnm_src\bmp_read.cc"
+					>
+				</File>
+				<File
+					RelativePath="..\..\pnm_src\bmp_write.cc"
+					>
+				</File>
+				<File
+					RelativePath="..\..\pnm_src\cvdimage.cxx"
+					>
+				</File>
+				<File
+					RelativePath="..\..\pnm_src\fits.cc"
+					>
+				</File>
+				<File
+					RelativePath="..\..\pnm_src\fitswrite.cc"
+					>
+				</File>
+				<File
 					RelativePath="..\..\pnm_src\jpeg.cxx"
 					>
 				</File>
@@ -491,6 +501,14 @@
 				</File>
 				<File
 					RelativePath="..\..\pnm_src\save_postscript.cxx"
+					>
+				</File>
+				<File
+					RelativePath="..\..\pnm_src\text.cxx"
+					>
+				</File>
+				<File
+					RelativePath="..\..\pnm_src\text_write.cc"
 					>
 				</File>
 			</Filter>
@@ -507,6 +525,34 @@
 				</File>
 				<File
 					RelativePath="..\..\cvd_src\Win32\win32.h"
+					>
+				</File>
+			</Filter>
+			<Filter
+				Name="Linux"
+				>
+				<File
+					RelativePath="..\..\cvd_src\Linux\videosource_nov4l1buffer.cc"
+					>
+				</File>
+				<File
+					RelativePath="..\..\cvd_src\Linux\videosource_nov4lbuffer.cc"
+					>
+				</File>
+			</Filter>
+			<Filter
+				Name="OSX"
+				>
+				<File
+					RelativePath="..\..\cvd_src\OSX\videosource_noqtbuffer.cc"
+					>
+				</File>
+			</Filter>
+			<Filter
+				Name="SSE"
+				>
+				<File
+					RelativePath="..\..\cvd_src\SSE2\half_sample.cc"
 					>
 				</File>
 			</Filter>
@@ -557,15 +603,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\config.h"
+				RelativePath="..\vc2005\config.h"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
-						CommandLine="copy ..\vc2005\$(InputFileName) ..\..\cvd\&#x0D;&#x0A;"
-						Outputs="..\..\cvd\$(InputFileName)"
+						CommandLine="copy &quot;$(InputPath)&quot; &quot;$(InputDir)..\..\cvd&quot;&#x0D;&#x0A;"
+						Outputs="&quot;$(InputDir)..\..\cvd\$(InputFileName)&quot;"
 					/>
 				</FileConfiguration>
 				<FileConfiguration
@@ -573,8 +619,8 @@
 					>
 					<Tool
 						Name="VCCustomBuildTool"
-						CommandLine="copy $(InputFileName) ..\..\cvd\&#x0D;&#x0A;"
-						Outputs="..\..\cvd\$(InputFileName)"
+						CommandLine="copy &quot;$(InputPath)&quot; &quot;$(InputDir)..\..\cvd&quot;&#x0D;&#x0A;"
+						Outputs="&quot;$(InputDir)..\..\cvd\$(InputFileName)&quot;"
 					/>
 				</FileConfiguration>
 			</File>
@@ -866,12 +912,6 @@
 					>
 				</File>
 			</Filter>
-		</Filter>
-		<Filter
-			Name="Resource Files"
-			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
-			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
-			>
 		</Filter>
 	</Files>
 	<Globals>

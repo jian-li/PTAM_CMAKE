@@ -1,5 +1,8 @@
 #ifndef CVD_CONFIG_H
 #define CVD_CONFIG_H
+#ifdef WIN32
+	#include <cvd/internal/win.h>
+#endif
 #define CVD_ARCH_LITTLE_ENDIAN 1
 #ifndef CVD_DISABLE_ASSEMBLER
     #define CVD_HAVE_ASSEMBLER 1
@@ -40,11 +43,11 @@
 #ifndef CVD_DISABLE_PNG
     #define CVD_HAVE_PNG 1
 #endif
+#ifndef CVD_DISABLE_POSIX_RT
+    #define CVD_HAVE_POSIX_RT 1
+#endif
 #ifndef CVD_DISABLE_PTHREAD
     #define CVD_HAVE_PTHREAD 1
-#endif
-#ifndef CVD_DISABLE_PTHREAD_YIELD
-    #define CVD_HAVE_PTHREAD_YIELD 1
 #endif
 #ifndef CVD_DISABLE_SSE
     #define CVD_HAVE_SSE 1
@@ -61,28 +64,20 @@
 #ifndef CVD_DISABLE_TOON
     #define CVD_HAVE_TOON 1
 #endif
-#ifndef CVD_DISABLE_TR1_SHARED_PTR
-    #define CVD_HAVE_TR1_SHARED_PTR 1
-#endif
 #ifndef CVD_DISABLE_V4L2BUFFER
     #define CVD_HAVE_V4L2BUFFER 1
+#endif
+#ifndef CVD_DISABLE_V4LBUFFER
+    #define CVD_HAVE_V4LBUFFER 1
 #endif
 #ifndef CVD_DISABLE_VIDEODISPLAY
     #define CVD_HAVE_VIDEODISPLAY 1
 #endif
-#ifndef CVD_DISABLE_HALFSAMPLE_SSE16
-    #define CVD_INTERNAL_HAVE_HALFSAMPLE_SSE16 1
-#endif
 #ifndef CVD_DISABLE_TIFF_ORIENTED
     #define CVD_INTERNAL_HAVE_TIFF_ORIENTED 1
 #endif
-#ifndef CVD_DISABLE_YV402P_MMX
-    #define CVD_INTERNAL_HAVE_YV402P_MMX 1
-#endif
 #define CVD_INTERNAL_JPEG_BUFFER_SIZE 1
-#define CVD_KERNEL_MAJOR 3
-#define CVD_KERNEL_MINOR 16
-#define CVD_KERNEL_RELEASE 0
+#define CVD_INTERNAL_NEED_TR1 1
 #define CVD_MAJOR_VERSION 0
-#define CVD_MINOR_VERSION 7
+#define CVD_MINOR_VERSION 8
 #endif

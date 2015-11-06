@@ -1,23 +1,3 @@
-/*                       
-	This file is part of the CVD Library.
-
-	Copyright (C) 2005 The Authors
-
-	This library is free software; you can redistribute it and/or
-	modify it under the terms of the GNU Lesser General Public
-	License as published by the Free Software Foundation; either
-	version 2.1 of the License, or (at your option) any later version.
-
-	This library is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public
-	License along with this library; if not, write to the Free Software
-	Foundation, Inc., 
-    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
 #ifndef CVD_INCLUDE_INTERNAL_IO_FITS_H
 #define CVD_INCLUDE_INTERNAL_IO_FITS_H
 
@@ -52,6 +32,7 @@ namespace FITS
 			~reader();
 
 			ImageRef size();
+			bool top_row_first();
 
 			void get_raw_pixel_line(unsigned char*);
 			void get_raw_pixel_line(signed short*);
@@ -103,20 +84,23 @@ namespace FITS
 	};
 
 	
-#if 0
 	////////////////////////////////////////////////////////////////////////////////
 	//
-	// FITS writing, copied and midified from tiff.h
+	// FITS writing, copied and modified from tiff.h
 	//
 
-	template<int g8> struct IntMapper    { typedef unsigned short type;};
-	template<>       struct IntMapper<1> { typedef unsigned char type; };
-
+	template<typename C>     struct IntMapper                   { typedef int type;};
+	template<>               struct IntMapper<bool>             { typedef unsigned char type; };
+	template<>               struct IntMapper<char>             { typedef short type; };
+	template<>               struct IntMapper<unsigned char>    { typedef unsigned char type; };
+	template<>               struct IntMapper<short>            { typedef short type; };
+	template<>               struct IntMapper<unsigned short>   { typedef unsigned short type; };
+	template<>               struct IntMapper<int>              { typedef int type; };
 
 	//Mapping for integral types
 	template<class ComponentIn, int is_integral> struct ComponentMapper_
 	{
-		typedef typename IntMapper< (Pixel::traits<ComponentIn>::bits_used > 8) >::type type;
+		typedef typename IntMapper<ComponentIn>::type type;
 	};
 
 	//Mapping for non integral types
@@ -145,27 +129,34 @@ namespace FITS
 	};
 
 
+
 	
 	class WritePimpl;
 
 	class writer
 	{
 		public:
-			writer(std::ostream&, ImageRef size, const std::string& type);
+			writer(std::ostream&, ImageRef size, const std::string& type, const std::map<std::string, Parameter<> >& p);
 			~writer();
 
 			void write_raw_pixel_line(const unsigned char*);
+			void write_raw_pixel_line(const short*);
 			void write_raw_pixel_line(const unsigned short*);
+			void write_raw_pixel_line(const int*);
 			void write_raw_pixel_line(const float*);
 			void write_raw_pixel_line(const double*);
 
 			void write_raw_pixel_line(const Rgb<unsigned char>*);
+			void write_raw_pixel_line(const Rgb<short>*);
 			void write_raw_pixel_line(const Rgb<unsigned short>*);
+			void write_raw_pixel_line(const Rgb<int>*);
 			void write_raw_pixel_line(const Rgb<float>*);
 			void write_raw_pixel_line(const Rgb<double>*);
 
 			void write_raw_pixel_line(const Rgba<unsigned char>*);
+			void write_raw_pixel_line(const Rgba<short>*);
 			void write_raw_pixel_line(const Rgba<unsigned short>*);
+			void write_raw_pixel_line(const Rgba<int>*);
 			void write_raw_pixel_line(const Rgba<float>*);
 			void write_raw_pixel_line(const Rgba<double>*);
 
@@ -174,12 +165,11 @@ namespace FITS
 				typedef typename ComponentMapper<Incoming>::type type;
 			};		
 
+			static const int top_row_first=1;
 		private:
 			WritePimpl* t; 
 	};
 	
-#endif 
-
 }
 }
 #endif
